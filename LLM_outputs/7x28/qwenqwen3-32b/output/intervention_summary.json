@@ -1,0 +1,24 @@
+{
+  "total_sim_steps": 142,
+  "llm_calls": 284,
+  "llm_overrides": 68,
+  "safety_adjustments": 46,
+  "override_rate_%": 23.94,
+  "mean_confidence": 0.5,
+  "mean_margin_at_call": 0.0001,
+  "calls_by_reason": {
+    "uncertain": 72,
+    "anomaly": 212
+  },
+  "wall_clock_s": 28860.6,
+  "wall_clock_h": 8.017,
+  "sim_seconds": 1800,
+  "llm_budget_used": 284,
+  "training_ref": {
+    "episodes": 138,
+    "best_episode": 113,
+    "best_reward": 40824.85,
+    "final_epsilon": 0.0564,
+    "final_env_steps": 124200
+  }
+}

@@ -1,0 +1,7 @@
+agent,condition,total_reward,mean_reward,post_inject_mean_rew,recovery_delta,llm_calls,overrides
+safegat,baseline,-3.052,-0.0254,0.0,0.0,237,76
+pure_rl,baseline,-3.003,-0.025,0.0,0.0,0,0
+safegat,noise,-3.155,-0.0263,0.0,0.0,239,72
+pure_rl,noise,-3.158,-0.0263,0.0,0.0,0,0
+safegat,spike,-0.131,-0.0094,0.0,0.0,28,15
+pure_rl,spike,0.0,0.0,0.0,0.0,0,0

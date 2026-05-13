@@ -1,0 +1,12 @@
+{
+  "total_sim_steps": 320,
+  "llm_calls": 640,
+  "llm_overrides": 208,
+  "safety_adjustments": 177,
+  "override_rate_%": 32.5,
+  "mean_confidence": 0.5,
+  "mean_margin_at_call": 0.0022,
+  "calls_by_reason": {
+    "anomaly": 640
+  }
+}

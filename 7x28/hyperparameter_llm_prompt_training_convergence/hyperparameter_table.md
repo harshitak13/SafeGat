@@ -1,0 +1,43 @@
+# SafeGAT-iLLM Hyperparameter Table — 7x28 Network
+
+All changes relative to the 4x4 (12-junction) baseline are highlighted.
+
+| Category | Parameter | Symbol | Value (7x28) | Old (4x4) | Source | Description |
+|----------|-----------|--------|-------------|-----------|--------|-------------|
+| **GAT-DQN Network Architecture** | | | | | | |
+| GAT-DQN Network Architecture | Observation dim | d | **8** | 8 | `train.py → OBS_DIM` | Feature vector per junction (unchanged) |
+| GAT-DQN Network Architecture | Hidden dim | H | **128** ⟵ | 64 | `train.py → HIDDEN_DIM` | Larger to handle 196-node graph |
+| GAT-DQN Network Architecture | GAT attention heads | K_h | **4** | 4 | `train.py → GAT_HEADS` | Multi-head attention (unchanged) |
+| GAT-DQN Network Architecture | Number of actions | A | **4** | 4 | `net_config.py → NUM_ACTIONS` | Discrete phase choices per junction |
+| GAT-DQN Network Architecture | Number of junctions | N | **196** ⟵ | 12 | `net_config.py → NUM_NODES` | Controlled junctions (7x28 vs 4x4) |
+| GAT-DQN Network Architecture | Graph rows | R | **10** ⟵ | 3 | `net_config.py → GRID_ROWS` | Irregular rows in 7x28 network |
+| GAT-DQN Network Architecture | Max graph cols | C | **28** ⟵ | 4 | `net_config.py → GRID_COLS` | Maximum columns in any row |
+| **DQN Training** | | | | | | |
+| DQN Training | Total episodes | — | **200** ⟵ | 100 | `train.py → TOTAL_EPISODES` | More episodes for larger network |
+| DQN Training | Max steps/episode | T | **3600** ⟵ | 1800 | `train.py → MAX_STEPS` | Full 1-hour simulation per episode |
+| DQN Training | Checkpoint frequency | — | **25 eps** | 25 eps | `train.py → CHECKPOINT_FREQ` | Unchanged |
+| DQN Training | Learning rate | α | **1e-3** | 1e-3 | `train.py → LR` | Unchanged |
+| DQN Training | Discount factor | γ | **0.95** | 0.95 | `train.py → GAMMA` | Unchanged |
+| DQN Training | Batch size | B | **64** | 64 | `train.py → BATCH_SIZE` | Unchanged |
+| DQN Training | Buffer capacity | — | **200 000** ⟵ | 50 000 | `train.py → BUFFER_CAPACITY` | Scaled: 196 nodes generate 16x more data |
+| DQN Training | Warmup steps | — | **2 000** ⟵ | 500 | `train.py → WARMUP_STEPS` | Larger warmup for bigger buffer |
+| DQN Training | Target net update freq | — | **1 000** ⟵ | 500 | `train.py → TARGET_UPDATE_FREQ` | Less frequent for bigger network |
+| DQN Training | Gradient clip norm | — | **10.0** | 10.0 | `train.py → GRAD_CLIP` | Unchanged |
+| **Epsilon-Greedy Exploration** | | | | | | |
+| Epsilon-Greedy Exploration | Initial epsilon | ε_0 | **1.0** | 1.0 | `train.py → EPSILON_START` | Unchanged |
+| Epsilon-Greedy Exploration | Final epsilon | ε_∞ | **0.05** | 0.05 | `train.py → EPSILON_END` | Unchanged |
+| Epsilon-Greedy Exploration | Decay steps | — | **100 000** ⟵ | 25 000 | `train.py → EPSILON_DECAY_STEPS` | Longer decay for 196-node grid |
+| **SafeGAT Selective Intervention** | | | | | | |
+| SafeGAT Selective Intervention | Q-margin threshold | τ | **0.05** | 0.05 | `run_safegat.py → Q_MARGIN_TAU` | Unchanged: same uncertainty criterion |
+| SafeGAT Selective Intervention | LLM budget/episode | B | **6 400** ⟵ | 1 600 | `run_safegat.py → LLM_BUDGET` | Scaled ~4x for 196 nodes |
+| SafeGAT Selective Intervention | Max nodes/step | — | **8** ⟵ | 2 | `run_safegat.py → MAX_NODES_PER_STEP` | Scaled: review more nodes per step |
+| SafeGAT Selective Intervention | Min green hold | t_min | **3 steps** | 3 steps | `run_safegat.py → MIN_GREEN_STEPS` | Unchanged |
+| SafeGAT Selective Intervention | LLM call interval | — | **4.0 s** | 4.0 s | `safegat_llm.yaml` | Rate limiter (unchanged) |
+| SafeGAT Selective Intervention | Sim length | — | **3 600 s** ⟵ | 1 600 s | `run_safegat.py → SIM_SECONDS` | Full 1-hour inference episode |
+| **Scenario Detector** | | | | | | |
+| Scenario Detector | Queue spike threshold | — | **0.85** | 0.85 | `safegat_llm.yaml` | Unchanged |
+| Scenario Detector | Zero-fraction threshold | — | **0.90** | 0.90 | `safegat_llm.yaml` | Unchanged |
+| **SUMO Network** | | | | | | |
+| SUMO Network | Network file | — | **7x28.net.xml** ⟵ | 4x4.net.xml | `network/` | 7x28 grid network |
+| SUMO Network | Route file | — | **7x28.rou.xml** ⟵ | 4x4.rou.xml | `network/` | 7x28 traffic flows |
+| SUMO Network | Config file | — | **7x28.sumocfg** ⟵ | 4x4.sumocfg | `network/` | 7x28 SUMO config |

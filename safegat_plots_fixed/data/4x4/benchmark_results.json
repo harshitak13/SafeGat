@@ -1,0 +1,32 @@
+{
+  "Webster (Fixed-Time)": {
+    "att": 227.4,
+    "avg_queue": 178.81,
+    "avg_delay": 206.48,
+    "throughput": 344
+  },
+  "Actuated / Webster-Adaptive": {
+    "att": 162.43,
+    "avg_queue": 119.21,
+    "avg_delay": 142.4,
+    "throughput": 419
+  },
+  "Plain DQN (no graph)": {
+    "att": 178.67,
+    "avg_queue": 133.51,
+    "avg_delay": 156.64,
+    "throughput": 402
+  },
+  "GAT-DQN (RL-only ablation)": {
+    "att": 151.06,
+    "avg_queue": 109.67,
+    "avg_delay": 132.43,
+    "throughput": 432
+  },
+  "SafeGAT-iLLM (ours)": {
+    "att": 145.0249433106576,
+    "avg_queue": 101.02267573696145,
+    "avg_delay": 123.82684807256236,
+    "throughput": 441
+  }
+}

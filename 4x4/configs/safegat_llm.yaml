@@ -1,0 +1,36 @@
+# configs/safegat_llm.yaml
+#
+# SafeGAT-LLM hyperparameters for inference (run_safegat.py).
+# Training hyperparameters live in train.py directly.
+
+llm:
+  enabled: true
+  mode: selective # "selective" | "always" | "never"
+
+  # Uncertainty gate
+  confidence_threshold: 0.05 # Q-margin τ — call LLM when Δ_i < τ
+  intervention_budget: 1600 # max LLM calls for the full episode
+  max_nodes_per_step: 2 # max junctions sent to LLM per sim step
+
+  # Safety shield
+  min_green_hold: 3 # min steps before a green phase may switch
+
+  # Logging
+  log_file: "data/output/llm/safegat_decisions.jsonl"
+
+  # Backend (override per-run if needed)
+  llm_timeout: 20 # seconds per API call before abort
+  fallback_to_rl: true # use RL action if LLM errors
+  min_call_interval_s: 4.0 # rate-limiter: min gap between API calls
+
+  # Scenario detector thresholds
+  queue_spike_threshold: 0.85
+  zero_fraction_corruption_threshold: 0.90
+
+  # Anomaly tags that trigger gate even if confidence is high
+  anomaly_triggers:
+    - emergency_vehicle
+    - accident_flag
+    - possible_packet_loss
+    - nan_observation
+    - queue_spike

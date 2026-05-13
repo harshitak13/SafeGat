@@ -1,0 +1,57 @@
+# configs/safegat_llm.yaml
+#
+# SafeGAT-LLM hyperparameters for inference (run_safegat.py) — 7x28 network.
+# Training hyperparameters live in train.py directly.
+
+llm:
+  enabled: true
+  mode: selective                   # "selective" | "always" | "never"
+
+  # Uncertainty gate
+  confidence_threshold: 0.05        # Q-margin tau — call LLM when delta_i < tau
+  intervention_budget:  6400        # max LLM calls for the full episode
+                                    # (scaled from 1600 -> 6400 for 196 nodes)
+  max_nodes_per_step:   2           # SPEED FIX: was 8. 2 nodes called in parallel
+                                    # keeps RPM at ~60/min — well under Groq ceiling.
+                                    # Parallelism means wall-clock time per step is
+                                    # unchanged vs 1 node, but throughput doubles.
+
+  # Safety shield
+  min_green_hold: 3                 # min steps before a green phase may switch
+
+  # Logging
+  log_file: "output/llm/safegat_decisions.jsonl"
+
+  # Backend (override per-run if needed)
+  llm_timeout:      20              # seconds per API call before abort
+  fallback_to_rl:   true            # use RL action if LLM errors
+
+  # SPEED FIX: raised from 2.0s → 2.5s.
+  # Adds a small buffer so 2 parallel calls don't land simultaneously and
+  # trigger rate-limit collisions on Groq's per-second sub-limit.
+  min_call_interval_s: 2.5
+
+  # Backoff: base raised from 30s → 60s (Groq reset window is ~60s).
+  backoff_wait_s: 60.0
+
+  # SPEED FIX: reduced from 3 → 2.
+  # After 2 failures (60s + 120s = 3min wait max) fall back to RL immediately.
+  # The cooldown in run_safegat.py then suppresses that node for 30 steps,
+  # so the retry storm (J145 failing every step) cannot recur.
+  max_backoff_retries: 2
+
+  # TPM gate — Groq free-tier llama-3.1-8b-instant hard cap is 6000 TPM.
+  # SPEED FIX: lowered from 5500 → 5000 to reduce TPM-triggered rate limits.
+  tpm_limit: 5000
+
+  # Scenario detector thresholds
+  queue_spike_threshold:               0.85
+  zero_fraction_corruption_threshold:  0.90
+
+  # Anomaly tags that trigger gate even if confidence is high
+  anomaly_triggers:
+    - emergency_vehicle
+    - accident_flag
+    - possible_packet_loss
+    - nan_observation
+    - queue_spike

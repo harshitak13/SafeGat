@@ -1,0 +1,4 @@
+Variant,Total Reward,Mean Step Reward,Mean Occupancy,LLM Calls,LLM Overrides,Safety Adjustments,Safety Violations,Intervention Rate (%)
+V1: GAT-DQN Only,-8.90,-0.02781,0.0819,0,0,0,148,0.0
+V2: Uniform LLM,-9.41,-0.02941,0.0770,2570,745,0,193,100.0
+V3: Full SafeGAT ★,-10.10,-0.03157,0.0719,640,208,177,0,16.7

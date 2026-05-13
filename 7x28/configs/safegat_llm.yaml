@@ -1,0 +1,57 @@
+# configs/safegat_llm.yaml
+#
+# SafeGAT-LLM hyperparameters for inference (run_safegat.py) — 7x28 network.
+# Training hyperparameters live in train.py directly.
+
+llm:
+  enabled: true
+  mode: selective                   # "selective" | "always" | "never"
+
+  # Uncertainty gate
+  confidence_threshold: 0.05        # Q-margin tau — call LLM when delta_i < tau
+  intervention_budget:  6400        # max LLM calls for the full episode
+                                    # (scaled from 1600 -> 6400 for 196 nodes)
+  max_nodes_per_step:   8           # max junctions sent to LLM per sim step
+                                    # (scaled from 2 -> 8 for 196-node grid)
+
+  # Safety shield
+  min_green_hold: 3                 # min steps before a green phase may switch
+
+  # Logging
+  log_file: "output/llm/safegat_decisions.jsonl"
+
+  # Backend (override per-run if needed)
+  llm_timeout:      20              # seconds per API call before abort
+  fallback_to_rl:   true            # use RL action if LLM errors
+
+  # Fix B: reduced from 4.0s → 2.0s.
+  # 8 nodes/step * 2s = 16s per step worst case (was 32s).
+  # 2.0s → max 30 calls/min, right at the Groq free-tier RPM ceiling for 8b.
+  # LLMGateway enforces this internally; the outer TPM gate in run_safegat.py
+  # provides the 90s hard-timeout safety net to prevent infinite spin.
+  min_call_interval_s: 2.0
+
+  # Fix: base backoff raised from 30s → 60s.
+  # Groq's rate-limit reset window is ~60s; 30s was too short to clear it,
+  # causing the retry storm observed in the logs (attempt 1→30s, attempt 2→60s
+  # but still hitting limits). Starting at 60s means attempt 1 clears the window.
+  backoff_wait_s: 60.0
+  max_backoff_retries: 3            # Fix B: reduced from 5 → 3; after 3 failures
+                                    # (3 * 60s = 3min wait max) fall back to RL
+                                    # instead of blocking for up to 5min per node.
+
+  # TPM gate — Groq free-tier llama-3.1-8b-instant hard cap is 6000 TPM.
+  # Fix B: set explicitly so run_safegat.py picks it up (was defaulting to 5000).
+  tpm_limit: 5500                   # 92% of 6000; lower to 5000 if TPM errors recur
+
+  # Scenario detector thresholds
+  queue_spike_threshold:               0.85
+  zero_fraction_corruption_threshold:  0.90
+
+  # Anomaly tags that trigger gate even if confidence is high
+  anomaly_triggers:
+    - emergency_vehicle
+    - accident_flag
+    - possible_packet_loss
+    - nan_observation
+    - queue_spike

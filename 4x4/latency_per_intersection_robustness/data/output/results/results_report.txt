@@ -1,0 +1,64 @@
+=================================================================
+SafeGAT-iLLM  —  Experiment Results Report
+=================================================================
+
+[1] ROBUSTNESS: SafeGAT vs Pure RL
+----------------------------------------
+  Total reward  SafeGAT :   -10.103
+  Total reward  Pure RL :   -10.103
+  Pre-injection mean    SafeGAT :  -0.0267
+  Pre-injection mean    Pure RL :  -0.0267
+  Post-injection mean   SafeGAT :  -0.0365
+  Post-injection mean   Pure RL :  -0.0365
+  Recovery delta        SafeGAT :  -0.0098
+  Recovery delta        Pure RL :  -0.0098
+  SafeGAT post-injection advantage :  +0.0000
+  >> Pure RL held up post-perturbation (check simulation logs).
+
+[2] LATENCY ANALYSIS
+----------------------------------------
+  Total LLM calls       : 640
+  Simulation steps      : 320
+  Calls per step        : 2.0
+  LLM mean latency      : 250 ms  (Groq empirical)
+  LLM p95 latency       : 600 ms
+  LLM p99 latency       : 1200 ms
+  Synchronous overhead  : 500.0 ms / step
+  Async overhead        : 250 ms / step
+  Step budget           : 1000 ms
+  Sync viable?          : YES
+  Async viable?         : YES
+
+[3] PER-JUNCTION BREAKDOWN
+----------------------------------------
+  Junction  Calls  Interv%  Override%  Anomaly%   Margin
+  ------------------------------------------------------
+  J1           39    12.2%      33.3%    100.0%  0.00329
+  J11          40    12.5%       5.0%    100.0%  0.00218
+  J12          55    17.2%       3.6%    100.0%  0.00175
+  J13          22     6.9%       9.1%    100.0%  0.00297
+  J16          59    18.4%      13.6%    100.0%  0.00358
+  J17          62    19.4%      38.7%    100.0%  0.00380
+  J18          22     6.9%      18.2%    100.0%  0.00387
+  J2           16     5.0%      68.8%    100.0%  0.00175
+  J3           37    11.6%      62.2%    100.0%  0.00232
+  J6          135    42.2%      35.6%    100.0%  0.00097
+  J7           40    12.5%      45.0%    100.0%  0.00190
+  J8          111    34.7%      47.7%    100.0%  0.00167
+
+  Hotspot  (most LLM calls): J6 — 135 calls
+  Coldspot (fewest calls)  : J2 — 16 calls
+  Highest override rate    : J2 (68.8%)
+
+[4] GLOBAL INTERVENTION SUMMARY
+----------------------------------------
+  total_sim_steps              : 320
+  llm_calls                    : 640
+  llm_overrides                : 208
+  safety_adjustments           : 177
+  override_rate_%              : 32.5
+  mean_confidence              : 0.5
+  mean_margin_at_call          : 0.0022
+  calls_by_reason              : {'anomaly': 640}
+
+=================================================================

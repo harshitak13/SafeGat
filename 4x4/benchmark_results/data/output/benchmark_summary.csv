@@ -1,0 +1,6 @@
+Method,ATT (s),Queue Length (s),Delay / Time-Loss (s),Throughput (veh)
+Webster (Fixed-Time),227.4,178.81,206.48,344
+Actuated / Webster-Adaptive,162.43,119.21,142.4,419
+Plain DQN (no graph),178.67,133.51,156.64,402
+GAT-DQN (RL-only ablation),151.06,109.67,132.43,432
+SafeGAT-iLLM (ours),145.0249433106576,101.02267573696145,123.82684807256236,441
