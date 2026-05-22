@@ -129,6 +129,10 @@ def main() -> None:
             next_obs, rewards, done, _infos = env.step(actions)
 
             # 3. Store transition
+            # is_llm=False: this is a pure RL training loop with no LLM calls.
+            # Set is_llm=True in any combined train+LLM loop so the GMM
+            # importance sampler can distinguish LLM-refined transitions and
+            # upweight beneficial ones (OffLight fix).
             trainer.store_transition(
                 obs          = obs,
                 actions      = actions,
@@ -136,6 +140,7 @@ def main() -> None:
                 next_obs     = next_obs,
                 dones        = np.full(NUM_NODES, float(done), dtype=np.float32),
                 attn_weights = attn,
+                is_llm       = False,
             )
 
             # 4. Update network

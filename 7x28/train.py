@@ -167,6 +167,8 @@ def main() -> None:
             repeat_count -= 1
 
             # Store transition (one per actual env step — keeps replay diverse)
+            # is_llm=False: pure RL loop; set True in combined train+LLM loops
+            # so the GMM importance sampler can distinguish quality tiers (OffLight fix).
             trainer.store_transition(
                 obs          = obs,
                 actions      = actions,
@@ -174,6 +176,7 @@ def main() -> None:
                 next_obs     = next_obs,
                 dones        = np.full(NUM_NODES, float(done), dtype=np.float32),
                 attn_weights = attn,
+                is_llm       = False,
             )
 
             # Update network

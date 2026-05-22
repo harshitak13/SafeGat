@@ -20,9 +20,19 @@ Key design choices
 
 5. Model save / load with full training-state resumption.
 
+6. [FIX] GMM-VGAE Importance-Sampled Replay Buffer (OffLight, arXiv Nov 2024):
+   LLM-refined and RL-only transitions are tagged at push-time.  A two-
+   component Gaussian Mixture Model (GMM) is fit to the reward distribution
+   of each quality tier.  At sample-time each transition receives an
+   importance weight  w_i = p_beneficial(r_i) / p_all(r_i)  so that
+   LLM transitions with genuinely better rewards are upweighted and
+   harmful / noisy ones are downweighted, correcting the learning signal.
+
 Sources
 -------
 - iLLM-TSC2 (train_grid.py FastGATDQNTrainer + training/gat_dqn_trainer.py)
+- OffLight (arXiv Nov 2024): GMM-VGAE with importance sampling for offline-
+  assisted RL replay buffers.
 """
 
 from __future__ import annotations
@@ -39,11 +49,167 @@ import torch.nn as nn
 from training.gat_network import GATQNetwork
 
 
+# ── GMM-based quality estimator ───────────────────────────────────────────────
+
+class _GMMQualityEstimator:
+    """
+    Lightweight two-component GMM fit to the reward distribution of a set
+    of transitions.  Used to compute per-transition importance weights.
+
+    The GMM is re-fit every ``refit_interval`` calls to ``importance_weights``
+    so the model tracks the evolving buffer distribution.
+
+    Parameters
+    ----------
+    n_components    : int   — number of Gaussian components (default 2)
+    refit_interval  : int   — how many weight-query calls between re-fits
+    min_samples     : int   — minimum samples before GMM fitting is attempted
+    """
+
+    def __init__(
+        self,
+        n_components:   int = 2,
+        refit_interval: int = 200,
+        min_samples:    int = 64,
+    ):
+        self.n_components   = n_components
+        self.refit_interval = refit_interval
+        self.min_samples    = min_samples
+
+        # GMM parameters (diagonal covariance, 1-D rewards)
+        self._means: Optional[np.ndarray]  = None   # (K,)
+        self._vars:  Optional[np.ndarray]  = None   # (K,)
+        self._pis:   Optional[np.ndarray]  = None   # (K,)  mixture weights
+
+        self._call_count = 0
+
+    # ── EM fitting ────────────────────────────────────────────────────────────
+
+    def fit(self, rewards: np.ndarray) -> None:
+        """
+        Fit GMM to ``rewards`` (1-D array) using simple EM.
+        Falls back to uniform distribution if fitting is degenerate.
+        """
+        r = rewards.ravel().astype(np.float64)
+        K = self.n_components
+        N = len(r)
+
+        if N < self.min_samples:
+            self._means = self._vars = self._pis = None
+            return
+
+        # Initialise means by percentile split
+        pcts = np.linspace(0, 100, K + 2)[1:-1]
+        means = np.percentile(r, pcts)
+        # Add small noise to break symmetry
+        means += np.random.randn(K) * (r.std() * 0.01 + 1e-8)
+        var   = np.full(K, r.var() / K + 1e-6)
+        pi    = np.full(K, 1.0 / K)
+
+        for _ in range(50):                         # EM iterations
+            # E-step
+            resp = np.zeros((N, K))
+            for k in range(K):
+                resp[:, k] = pi[k] * self._gauss(r, means[k], var[k])
+            resp_sum = resp.sum(axis=1, keepdims=True)
+            resp_sum = np.where(resp_sum < 1e-300, 1e-300, resp_sum)
+            resp /= resp_sum
+
+            # M-step
+            Nk = resp.sum(axis=0) + 1e-8
+            means_new = (resp * r[:, None]).sum(axis=0) / Nk
+            var_new   = (resp * (r[:, None] - means_new[None, :]) ** 2).sum(axis=0) / Nk
+            var_new   = np.maximum(var_new, 1e-6)
+            pi_new    = Nk / Nk.sum()
+
+            if np.allclose(means, means_new, atol=1e-6):
+                means, var, pi = means_new, var_new, pi_new
+                break
+            means, var, pi = means_new, var_new, pi_new
+
+        self._means = means
+        self._vars  = var
+        self._pis   = pi
+
+    @staticmethod
+    def _gauss(x: np.ndarray, mu: float, sigma2: float) -> np.ndarray:
+        return np.exp(-0.5 * (x - mu) ** 2 / sigma2) / np.sqrt(2 * np.pi * sigma2)
+
+    # ── Weight computation ────────────────────────────────────────────────────
+
+    def importance_weights(
+        self,
+        rewards: np.ndarray,
+        is_llm:  np.ndarray,
+        refit_rewards: Optional[np.ndarray] = None,
+    ) -> np.ndarray:
+        """
+        Compute importance weights for a batch of transitions.
+
+        w_i = p_beneficial(r_i) / p_all(r_i)
+
+        where p_beneficial is the density of the GMM component with the
+        highest mean (treating it as the "good" cluster) and p_all is the
+        full mixture density.
+
+        LLM-refined transitions whose reward falls in the beneficial cluster
+        get w > 1 (upweighted); those in the low-reward cluster get w < 1.
+        RL-only transitions receive w = 1 (neutral baseline).
+
+        Parameters
+        ----------
+        rewards        : (B,) mean reward per transition
+        is_llm         : (B,) bool — True if the transition was LLM-refined
+        refit_rewards  : optional separate pool of rewards to re-fit GMM on
+
+        Returns
+        -------
+        weights : (B,) float32, clipped to [0.1, 10.0]
+        """
+        self._call_count += 1
+        # Periodically re-fit
+        if self._call_count % self.refit_interval == 1:
+            pool = refit_rewards if refit_rewards is not None else rewards
+            self.fit(pool)
+
+        weights = np.ones(len(rewards), dtype=np.float32)
+
+        if self._means is None:
+            return weights                          # not enough data yet
+
+        r = rewards.ravel().astype(np.float64)
+        K = self.n_components
+
+        # Full mixture density
+        p_all = sum(
+            self._pis[k] * self._gauss(r, self._means[k], self._vars[k])
+            for k in range(K)
+        )
+        p_all = np.maximum(p_all, 1e-300)
+
+        # Beneficial component = the one with the highest mean
+        best_k   = int(np.argmax(self._means))
+        p_benef  = self._gauss(r, self._means[best_k], self._vars[best_k])
+
+        ratio    = (p_benef / p_all).astype(np.float32)
+
+        # Only LLM transitions get re-weighted; RL transitions stay at 1
+        weights  = np.where(is_llm, ratio, np.ones_like(ratio))
+
+        # Clip to prevent extreme gradients
+        weights  = np.clip(weights, 0.1, 10.0)
+        # Normalise so mean weight == 1 (keeps effective learning rate stable)
+        weights  = weights / (weights.mean() + 1e-8)
+
+        return weights.astype(np.float32)
+
+
 # ── Replay Buffer ──────────────────────────────────────────────────────────────
 
 class ReplayBuffer:
     """
-    Fixed-capacity circular replay buffer.
+    Fixed-capacity circular replay buffer with LLM-quality tagging and
+    GMM-based importance sampling (OffLight fix).
 
     Each transition stores:
         obs          (num_nodes, obs_dim)
@@ -52,10 +218,17 @@ class ReplayBuffer:
         next_obs     (num_nodes, obs_dim)
         dones        (num_nodes,)  — float, 1.0 if terminal
         attn_weights raw attention array (stored for logging; not used in update)
+        is_llm       bool — True if any node action was LLM-refined this step
+
+    Parameters
+    ----------
+    capacity         : int  — maximum number of transitions
+    gmm_refit_interval: int  — how often the GMM is re-fit (in sample() calls)
     """
 
-    def __init__(self, capacity: int):
+    def __init__(self, capacity: int, gmm_refit_interval: int = 200):
         self.buf = deque(maxlen=capacity)
+        self._gmm = _GMMQualityEstimator(refit_interval=gmm_refit_interval)
 
     def push(
         self,
@@ -65,20 +238,55 @@ class ReplayBuffer:
         next_obs: np.ndarray,
         dones: np.ndarray,
         attn_weights,
+        is_llm: bool = False,       # ← NEW: tag whether LLM refined this step
     ):
-        self.buf.append((obs, actions, rewards, next_obs, dones, attn_weights))
+        """
+        Push one transition into the buffer.
+
+        Parameters
+        ----------
+        is_llm : bool
+            Set to True when at least one node's action was overridden or
+            accepted by the LLM refiner this step.  Used by the GMM
+            importance sampler to distinguish LLM from pure-RL transitions.
+        """
+        self.buf.append((obs, actions, rewards, next_obs, dones, attn_weights, is_llm))
 
     def sample(self, batch_size: int):
+        """
+        Sample a mini-batch with GMM importance weights.
+
+        Returns
+        -------
+        obs, actions, rewards, next_obs, dones, attn : standard arrays
+        weights : (B,) float32 importance weights
+        """
         batch = random.sample(self.buf, batch_size)
-        obs, actions, rewards, next_obs, dones, attn = zip(*batch)
-        return (
-            np.array(obs,      dtype=np.float32),   # (B, N, obs_dim)
-            np.array(actions,  dtype=np.int64),      # (B, N)
-            np.array(rewards,  dtype=np.float32),    # (B, N)
-            np.array(next_obs, dtype=np.float32),    # (B, N, obs_dim)
-            np.array(dones,    dtype=np.float32),    # (B, N)
-            attn,
+        obs, actions, rewards, next_obs, dones, attn, is_llm_flags = zip(*batch)
+
+        obs_arr     = np.array(obs,      dtype=np.float32)   # (B, N, obs_dim)
+        act_arr     = np.array(actions,  dtype=np.int64)      # (B, N)
+        rew_arr     = np.array(rewards,  dtype=np.float32)    # (B, N)
+        next_arr    = np.array(next_obs, dtype=np.float32)    # (B, N, obs_dim)
+        done_arr    = np.array(dones,    dtype=np.float32)    # (B, N)
+        is_llm_arr  = np.array(is_llm_flags, dtype=bool)     # (B,)
+
+        # Mean reward per transition (scalar summary for GMM)
+        mean_rewards = rew_arr.mean(axis=1)                   # (B,)
+
+        # Collect all buffered rewards for GMM re-fitting context
+        all_rewards = np.array(
+            [t[2].mean() for t in self.buf], dtype=np.float32
         )
+
+        # Compute importance weights
+        weights = self._gmm.importance_weights(
+            rewards        = mean_rewards,
+            is_llm         = is_llm_arr,
+            refit_rewards  = all_rewards,
+        )
+
+        return obs_arr, act_arr, rew_arr, next_arr, done_arr, attn, weights
 
     def __len__(self) -> int:
         return len(self.buf)
@@ -88,7 +296,9 @@ class ReplayBuffer:
 
 class FastGATDQNTrainer:
     """
-    DQN trainer with vectorised batched graph updates.
+    DQN trainer with vectorised batched graph updates and GMM importance
+    sampling to correct for corrupted replay caused by mixing LLM-refined
+    and RL-only transitions (OffLight fix).
 
     Usage::
 
@@ -98,7 +308,8 @@ class FastGATDQNTrainer:
         # Inside training loop:
         actions, q_vals, attn = trainer.select_actions(obs)
         ...
-        trainer.store_transition(obs, actions, rewards, next_obs, dones, attn)
+        trainer.store_transition(obs, actions, rewards, next_obs, dones, attn,
+                                 is_llm=llm_was_called_this_step)
         loss = trainer.update()
 
     Parameters
@@ -119,6 +330,7 @@ class FastGATDQNTrainer:
     buffer_capacity     : int   — replay buffer size (default 50 000)
     grad_clip           : float — max gradient norm (default 10.0)
     device              : str   — "cpu" or "cuda" (default "cpu")
+    gmm_refit_interval  : int   — GMM re-fit period in sample() calls (default 200)
     """
 
     def __init__(
@@ -139,6 +351,7 @@ class FastGATDQNTrainer:
         buffer_capacity: int = 50_000,
         grad_clip: float = 10.0,
         device: str = "cpu",
+        gmm_refit_interval: int = 200,
     ):
         self.num_nodes   = num_nodes
         self.num_actions = num_actions
@@ -173,7 +386,7 @@ class FastGATDQNTrainer:
         self.target_net.eval()
 
         self.optimizer = torch.optim.Adam(self.online_net.parameters(), lr=lr)
-        self.buffer    = ReplayBuffer(buffer_capacity)
+        self.buffer    = ReplayBuffer(buffer_capacity, gmm_refit_interval)
 
         # Must be set externally before use:  trainer.edge_index = EDGE_INDEX.to(device)
         self.edge_index: Optional[torch.Tensor] = None
@@ -257,28 +470,44 @@ class FastGATDQNTrainer:
         next_obs: np.ndarray,
         dones: np.ndarray,
         attn_weights,
+        is_llm: bool = False,   # ← NEW: pass True when LLM was called this step
     ):
-        """Push one transition into the replay buffer."""
-        self.buffer.push(obs, actions, rewards, next_obs, dones, attn_weights)
+        """
+        Push one transition into the replay buffer.
+
+        Parameters
+        ----------
+        is_llm : bool
+            True when the LLM refiner was invoked this step (for any node).
+            The GMM importance sampler uses this flag to distinguish LLM-
+            refined transitions from pure RL ones and weight them accordingly.
+        """
+        self.buffer.push(
+            obs, actions, rewards, next_obs, dones, attn_weights, is_llm
+        )
 
     # ── Vectorised batch update ────────────────────────────────────────────────
 
     def update(self) -> Optional[float]:
         """
-        Sample a mini-batch and perform one DQN gradient step.
+        Sample a mini-batch and perform one DQN gradient step with GMM
+        importance-weighted loss (OffLight fix).
 
         Returns the scalar loss, or None if the buffer is still warming up.
         """
         if len(self.buffer) < self.warmup_steps:
             return None
 
-        obs, actions, rewards, next_obs, dones, _ = self.buffer.sample(self.batch_size)
+        obs, actions, rewards, next_obs, dones, _, weights = \
+            self.buffer.sample(self.batch_size)
 
         obs_t      = torch.tensor(obs,      dtype=torch.float32, device=self.device)
         next_obs_t = torch.tensor(next_obs, dtype=torch.float32, device=self.device)
         act_t      = torch.tensor(actions,  dtype=torch.long,    device=self.device)
         rew_t      = torch.tensor(rewards,  dtype=torch.float32, device=self.device)
         done_t     = torch.tensor(dones,    dtype=torch.float32, device=self.device)
+        # Importance weights: shape (B,) → broadcast to (B, N) for per-node loss
+        w_t        = torch.tensor(weights,  dtype=torch.float32, device=self.device)
 
         # Single batched forward pass for both online and target nets
         q_vals  = self._batch_forward(self.online_net, obs_t)       # (B, N, A)
@@ -292,7 +521,14 @@ class FastGATDQNTrainer:
         # Bellman targets
         targets = rew_t + self.gamma * max_q_next * (1.0 - done_t) # (B, N)
 
-        loss = nn.functional.mse_loss(q_taken, targets.detach())
+        # ── Importance-weighted loss (OffLight fix) ────────────────────────────
+        # Per-element squared TD errors, then weight each transition (row) by w_i
+        td_errors    = (q_taken - targets.detach()) ** 2             # (B, N)
+        # w_t is per-transition → expand across nodes
+        weighted_td  = td_errors * w_t.unsqueeze(1)                  # (B, N)
+        loss         = weighted_td.mean()
+        # ── (original unweighted loss was: nn.functional.mse_loss(q_taken, targets.detach()))
+
         self.optimizer.zero_grad()
         loss.backward()
         nn.utils.clip_grad_norm_(self.online_net.parameters(), self.grad_clip)
