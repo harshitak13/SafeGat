@@ -319,6 +319,7 @@ class FastGATDQNTrainer:
     num_actions         : int   — number of discrete phase choices (default 4)
     hidden_dim          : int   — network hidden dimension (default 64)
     gat_heads           : int   — GAT multi-head attention count (default 4)
+    top_k               : int   — max causal neighbours per node (GTQN sparse gate, default 4)
     lr                  : float — Adam learning rate (default 1e-3)
     gamma               : float — discount factor (default 0.95)
     epsilon_start       : float — initial exploration rate (default 1.0)
@@ -340,6 +341,7 @@ class FastGATDQNTrainer:
         num_actions: int = 4,
         hidden_dim: int = 64,
         gat_heads: int = 4,
+        top_k: int = 4,
         lr: float = 1e-3,
         gamma: float = 0.95,
         epsilon_start: float = 1.0,
@@ -375,12 +377,14 @@ class FastGATDQNTrainer:
             hidden_dim       = hidden_dim,
             num_actions      = num_actions,
             gat_heads        = gat_heads,
+            top_k            = top_k,
         ).to(device)
         self.target_net = GATQNetwork(
             node_feature_dim = node_feature_dim,
             hidden_dim       = hidden_dim,
             num_actions      = num_actions,
             gat_heads        = gat_heads,
+            top_k            = top_k,
         ).to(device)
         self.target_net.load_state_dict(self.online_net.state_dict())
         self.target_net.eval()
