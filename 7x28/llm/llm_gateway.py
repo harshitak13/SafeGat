@@ -28,6 +28,7 @@ Sources
 from __future__ import annotations
 
 import json
+import random
 import re
 import threading
 import time
@@ -92,12 +93,16 @@ class LLMGateway:
         min_call_interval_s: float = 4.0,
         max_backoff_retries: int   = 5,
         backoff_wait_s:      float = 30.0,
+        failure_injection_rate: float = 0.0,
+        failure_rng_seed: Optional[int] = None,
     ) -> None:
         self.backend             = backend or self._mock_backend
         self.max_retries         = max_retries
         self.max_backoff_retries = max_backoff_retries
         self.backoff_wait_s      = backoff_wait_s
         self._rate_limiter       = _RateLimiter(min_call_interval_s)
+        self.failure_injection_rate = max(0.0, min(1.0, float(failure_injection_rate)))
+        self._failure_rng = random.Random(failure_rng_seed)
 
     # ── Mock ──────────────────────────────────────────────────────────────────
 
@@ -146,6 +151,11 @@ class LLMGateway:
         for attempt in range(self.max_backoff_retries):
             self._rate_limiter.acquire(label)
             try:
+                if (
+                    self.failure_injection_rate > 0.0
+                    and self._failure_rng.random() < self.failure_injection_rate
+                ):
+                    raise RuntimeError("injected_llm_failure")
                 return self.backend(prompt)
             except Exception as exc:
                 if "429" in str(exc) or "rate_limit" in str(exc).lower():

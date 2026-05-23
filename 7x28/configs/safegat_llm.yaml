@@ -13,6 +13,14 @@ llm:
                                     # (scaled from 1600 -> 6400 for 196 nodes)
   max_nodes_per_step:   8           # max junctions sent to LLM per sim step
                                     # (scaled from 2 -> 8 for 196-node grid)
+  intervention_rate: 0.0408         # K/N for 196-node grid
+  failure_injection_rate: 0.0       # sweep 0.10/0.30/0.50/1.00
+  risk_weights:
+    uncertainty: 2.0
+    anomaly: 1.5
+    queue: 1.0
+    waiting: 0.5
+    safety: 1.0
 
   # Safety shield
   min_green_hold: 3                 # min steps before a green phase may switch

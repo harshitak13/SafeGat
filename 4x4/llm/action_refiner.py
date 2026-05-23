@@ -32,6 +32,36 @@ from .traffic_prompt_builder import TrafficPromptBuilder
 from .types              import LLMDecision, RLDecisionInfo, RefineResult
 
 
+def _override_quality(info: RLDecisionInfo, final_action: int) -> dict:
+    """Q-value proxy for whether an override improved on the RL proposal."""
+    scores = list(info.action_scores or [])
+    rl_action = int(info.rl_action)
+    final_action = int(final_action)
+    if (
+        rl_action < 0
+        or final_action < 0
+        or rl_action >= len(scores)
+        or final_action >= len(scores)
+    ):
+        return {
+            "available": False,
+            "metric": "current_state_q_proxy",
+            "reason": "action index outside action_scores",
+        }
+    q_rl = float(scores[rl_action])
+    q_final = float(scores[final_action])
+    return {
+        "available": True,
+        "metric": "current_state_q_proxy",
+        "rl_action": rl_action,
+        "final_action": final_action,
+        "q_rl_action": q_rl,
+        "q_final_action": q_final,
+        "q_delta_final_minus_rl": q_final - q_rl,
+        "helped": bool(q_final >= q_rl),
+    }
+
+
 class SafeGATRefiner:
     """
     Entry point for the SafeGAT-LLM refinement pipeline.
@@ -100,6 +130,7 @@ class SafeGATRefiner:
             anomaly_tags      = info.anomaly_tags,
             corrupted         = scenario["corrupted"],
             forecast_probability = forecast_probability,
+            metadata          = info.metadata,
         )
 
         # ── 3. Conditional LLM call ────────────────────────────────────────────
@@ -135,6 +166,7 @@ class SafeGATRefiner:
             current_phase   = info.phase,
             metadata        = info.metadata,
         )
+        quality = _override_quality(info, shield.action)
 
         result = RefineResult(
             final_action    = shield.action,
@@ -152,6 +184,7 @@ class SafeGATRefiner:
                 "scenario_tags":  info.anomaly_tags,
                 "forecast_anomaly_prob": forecast_probability,
                 "corridor_context": corridor_context,
+                "override_quality": quality,
             },
         )
 
@@ -186,6 +219,7 @@ class SafeGATRefiner:
                     if result.llm_decision is None
                     else result.llm_decision.parsed
                 ),
+                "override_quality":  quality,
                 "debug": result.debug,
             })
 

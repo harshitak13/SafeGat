@@ -11,6 +11,14 @@ llm:
   confidence_threshold: 0.05 # Q-margin τ — call LLM when Δ_i < τ
   intervention_budget: 1600 # max LLM calls for the full episode
   max_nodes_per_step: 2 # max junctions sent to LLM per sim step
+  intervention_rate: 0.125 # K/N for 16-node grid
+  failure_injection_rate: 0.0 # sweep 0.10/0.30/0.50/1.00
+  risk_weights:
+    uncertainty: 2.0
+    anomaly: 1.5
+    queue: 1.0
+    waiting: 0.5
+    safety: 1.0
 
   # Safety shield
   min_green_hold: 3 # min steps before a green phase may switch

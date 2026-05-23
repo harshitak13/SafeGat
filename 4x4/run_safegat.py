@@ -34,6 +34,7 @@ Requires
 from __future__ import annotations
 
 import json
+import math
 import os
 from collections import defaultdict
 from typing import Optional
@@ -63,11 +64,28 @@ from utils.make_tsc_env import make_env
 from utils.readConfig   import read_config
 from utils.margin       import compute_q_margins, select_uncertain_nodes
 
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
 # ── Paths ──────────────────────────────────────────────────────────────────────
 _ROOT       = os.path.dirname(os.path.abspath(__file__))
 LOG_PATH    = os.path.join(_ROOT, "log")
 MODEL_PATH  = os.path.join(_ROOT, "models")
-RESULT_PATH = os.path.join(_ROOT, "data", "output")
+RESULT_PATH = os.environ.get(
+    "SAFEGAT_RESULT_PATH",
+    os.path.join(_ROOT, "data", "output"),
+)
 SUMO_CFG    = os.path.join(_ROOT, "network", "4x4.sumocfg")
 
 # ── Observation / network dimensions ──────────────────────────────────────────
@@ -78,13 +96,23 @@ GAT_HEADS  = 4
 # ── SafeGAT inference hyperparameters ─────────────────────────────────────────
 #   τ: LLM called when Q-margin Δ_i = Q(a*) − Q(a_2nd) < Q_MARGIN_TAU
 #   Low τ (0.05) drastically cuts token usage without losing key supervision.
-Q_MARGIN_TAU       = 0.05
+Q_MARGIN_TAU       = _env_float("SAFEGAT_CONFIDENCE_THRESHOLD", 0.05)
 
 #   Hard cap on total LLM calls for the whole episode.
-LLM_BUDGET         = 1600
+LLM_BUDGET         = _env_int("SAFEGAT_LLM_BUDGET", 1600)
 
 #   Maximum nodes reviewed by LLM in a single simulation step.
-MAX_NODES_PER_STEP = 2
+_DEFAULT_MAX_NODES_PER_STEP = _env_int("SAFEGAT_MAX_NODES_PER_STEP", 2)
+INTERVENTION_RATE = _env_float(
+    "SAFEGAT_INTERVENTION_RATE",
+    _DEFAULT_MAX_NODES_PER_STEP / NUM_NODES,
+)
+MAX_NODES_PER_STEP = max(
+    1,
+    min(NUM_NODES, int(math.ceil(INTERVENTION_RATE * NUM_NODES))),
+)
+INTERVENTION_RATE = MAX_NODES_PER_STEP / NUM_NODES
+LLM_FAILURE_INJECTION_RATE = _env_float("SAFEGAT_LLM_FAILURE_RATE", 0.0)
 
 #   Minimum green-phase hold (steps) before a phase switch is allowed.
 MIN_GREEN_STEPS    = 3
@@ -106,6 +134,7 @@ class InterventionStats:
         self.confidence_scores: list = []
         self.margin_at_call:    list = []
         self.calls_by_reason:   dict = defaultdict(int)
+        self.override_quality:   list = []
 
     def record_call(self, margin: float, reason: str) -> None:
         self.llm_calls += 1
@@ -118,9 +147,12 @@ class InterventionStats:
         final_action:    int,
         safety_adjusted: bool,
         confidence:      float,
+        quality:         Optional[dict] = None,
     ) -> None:
         if rl_action != final_action:
             self.llm_overrides += 1
+            if quality and quality.get("available"):
+                self.override_quality.append(quality)
         if safety_adjusted:
             self.safety_adjustments += 1
         self.confidence_scores.append(confidence)
@@ -137,6 +169,25 @@ class InterventionStats:
                                           if self.confidence_scores else 0.0, 4),
             "mean_margin_at_call":  round(float(np.mean(self.margin_at_call))
                                           if self.margin_at_call else 0.0, 4),
+            "override_precision_%": (
+                round(
+                    100 * sum(bool(q.get("helped")) for q in self.override_quality)
+                    / len(self.override_quality),
+                    2,
+                )
+                if self.override_quality else None
+            ),
+            "mean_override_q_delta": (
+                round(
+                    float(np.mean([
+                        q.get("q_delta_final_minus_rl", 0.0)
+                        for q in self.override_quality
+                    ])),
+                    6,
+                )
+                if self.override_quality else None
+            ),
+            "override_quality_metric": "current_state_q_proxy",
             "calls_by_reason":      dict(self.calls_by_reason),
         }
 
@@ -217,6 +268,55 @@ def _build_neighbor_summary(
         return {}
 
 
+def _time_of_day(sim_step: int) -> str:
+    hour = (sim_step // 120) % 24
+    if 7 <= hour < 10:
+        return "morning_peak"
+    if 16 <= hour < 19:
+        return "evening_peak"
+    if 10 <= hour < 16:
+        return "midday"
+    return "off_peak"
+
+
+def _propagation_status(neighbor_summary: dict) -> str:
+    if not neighbor_summary:
+        return "isolated_or_unknown"
+    occupancies = [
+        float(value.get("mean_occ", 0.0))
+        for value in neighbor_summary.values()
+        if isinstance(value, dict)
+    ]
+    if not occupancies:
+        return "neighbor_pressure_unknown"
+    max_occ = max(occupancies)
+    mean_occ = float(np.mean(occupancies))
+    if max_occ >= 0.70:
+        return f"downstream_congested max_neighbor_occ={max_occ:.3f}"
+    return f"stable_neighbors mean_neighbor_occ={mean_occ:.3f}"
+
+
+def _risk_weights_from_config(llm_cfg: dict) -> dict:
+    weights = {
+        "uncertainty": 2.0,
+        "anomaly": 1.5,
+        "queue": 1.0,
+        "waiting": 0.5,
+        "safety": 1.0,
+    }
+    cfg_weights = llm_cfg.get("risk_weights", {})
+    if isinstance(cfg_weights, dict):
+        weights.update({k: float(v) for k, v in cfg_weights.items() if k in weights})
+    raw_env = os.environ.get("SAFEGAT_RISK_WEIGHTS_JSON", "")
+    if raw_env:
+        try:
+            env_weights = json.loads(raw_env)
+            weights.update({k: float(v) for k, v in env_weights.items() if k in weights})
+        except Exception as exc:
+            logger.warning(f"Invalid SAFEGAT_RISK_WEIGHTS_JSON ignored: {exc!r}")
+    return weights
+
+
 # ── Main inference loop ────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -229,6 +329,7 @@ def main() -> None:
     transition_confidence_threshold = float(
         llm_cfg.get("transition_confidence_threshold", 0.75)
     )
+    risk_weights = _risk_weights_from_config(llm_cfg)
 
     # ── Load trained GAT-DQN ──────────────────────────────────────────────────
     trainer = FastGATDQNTrainer(
@@ -256,6 +357,11 @@ def main() -> None:
         gate           = InterventionGate(
             confidence_threshold = Q_MARGIN_TAU,
             intervention_budget  = MAX_NODES_PER_STEP,
+            low_conf_weight      = risk_weights["uncertainty"],
+            anomaly_weight       = risk_weights["anomaly"],
+            queue_weight         = risk_weights["queue"],
+            wait_weight          = risk_weights["waiting"],
+            safety_weight        = risk_weights["safety"],
         ),
         prompt_builder = TrafficPromptBuilder(),
         llm_gateway    = LLMGateway(
@@ -263,6 +369,8 @@ def main() -> None:
             min_call_interval_s = 4.0,
             max_backoff_retries = 5,
             backoff_wait_s      = 30.0,
+            failure_injection_rate = LLM_FAILURE_INJECTION_RATE,
+            failure_rng_seed    = 42,
         ),
         safety_shield  = SafetyShield(
             min_green_hold=MIN_GREEN_STEPS,
@@ -279,6 +387,7 @@ def main() -> None:
     # ── Phase-runtime tracking (for safety shield) ─────────────────────────────
     phase_runtime = np.zeros(NUM_NODES, dtype=int)
     last_phase    = np.full(NUM_NODES, -1, dtype=int)
+    queue_baseline = np.zeros(NUM_NODES, dtype=float)
 
     # ── SUMO environment ──────────────────────────────────────────────────────
     trip_info_path = os.path.join(RESULT_PATH, "safegat.tripinfo.xml")
@@ -302,7 +411,8 @@ def main() -> None:
 
     logger.info(
         f"SafeGAT inference start  |  τ={Q_MARGIN_TAU}  |  B={LLM_BUDGET}  "
-        f"|  max_per_step={MAX_NODES_PER_STEP}  |  t_min={MIN_GREEN_STEPS}"
+        f"|  max_per_step={MAX_NODES_PER_STEP}  |  K/N={INTERVENTION_RATE:.4f}  "
+        f"|  t_min={MIN_GREEN_STEPS}  |  failure_rate={LLM_FAILURE_INJECTION_RATE:.2f}"
     )
 
     while not done:
@@ -341,8 +451,21 @@ def main() -> None:
                 tls_id = CONTROLLED_TLS[node_idx]
                 info   = infos[node_idx]
 
+                if reactive_anomaly_flags[node_idx]:
+                    reason = "anomaly"
+                elif forecast_flags[node_idx]:
+                    reason = "forecast_anomaly"
+                else:
+                    reason = "uncertain"
+
                 # Build RLDecisionInfo for this junction
                 action_scores = q_values[node_idx].tolist()
+                neighbor_summary = _build_neighbor_summary(
+                    node_idx, rl_actions, infos, attn_np
+                )
+                current_queue = float(obs[node_idx, 6])
+                baseline_queue = float(queue_baseline[node_idx])
+                queue_pressure = max(current_queue, current_queue - baseline_queue)
                 rl_info = RLDecisionInfo(
                     intersection_id   = tls_id,
                     observation       = obs[node_idx].tolist(),
@@ -352,18 +475,29 @@ def main() -> None:
                     action_scores     = [float(s) for s in action_scores],
                     confidence_margin = float(margins[node_idx]),
                     legal_actions     = list(range(NUM_ACTIONS)),
-                    neighbor_summary  = _build_neighbor_summary(
-                                            node_idx, rl_actions, infos, attn_np),
+                    neighbor_summary  = neighbor_summary,
                     anomaly_tags      = [],
                     metadata          = {
                         "phase_runtime":        int(phase_runtime[node_idx]),
                         "sim_step":             int(sim_step),
+                        "sim_time_s":           int(sim_step),
+                        "time_of_day":          _time_of_day(sim_step),
                         "transition_model_source": "sumo",
                         "transition_model_confidence": 1.0,
                         "forecast_anomaly_prob": float(forecast_probs[node_idx]),
                         "forecast_horizon":     3,
                         "emergency_vehicle":    bool(obs[node_idx, 7] > 0.5),
                         "information_missing":  info.get("information_missing", False),
+                        "historical_baseline_queue": round(baseline_queue, 4),
+                        "current_queue":        round(current_queue, 4),
+                        "queue_pressure":       round(queue_pressure, 4),
+                        "waiting_pressure":     round(float(obs[node_idx, 2:6].mean()), 4),
+                        "event_details":        reason,
+                        "propagation_status":   _propagation_status(neighbor_summary),
+                        "yellow_phase":         bool(
+                            (int(last_phase[node_idx]) if last_phase[node_idx] >= 0 else 0)
+                            in {1, 3}
+                        ),
                         "observation_summary":  (
                             f"occ={obs[node_idx, 2:6].tolist()}  "
                             f"queue={obs[node_idx, 6]:.2f}  "
@@ -391,6 +525,7 @@ def main() -> None:
                             result.llm_decision.parsed.get("confidence", 0.5)
                             if result.llm_decision else 0.5
                         ),
+                        quality         = result.debug.get("override_quality"),
                     )
                 except Exception as exc:
                     logger.warning(
@@ -407,6 +542,7 @@ def main() -> None:
         obs, rewards, done, infos = env.step(final_actions)
         total_rewards += rewards
         stats.total_steps += 1
+        queue_baseline = 0.98 * queue_baseline + 0.02 * obs[:, 6]
 
         # Update phase-runtime tracking
         for i in range(NUM_NODES):
@@ -422,6 +558,7 @@ def main() -> None:
             "step":         sim_step,
             "mean_reward":  float(rewards.mean()),
             "mean_occ":     float(obs[:, 2:6].mean()),
+            "mean_queue":   float(obs[:, 6].mean()),
             "mean_margin":  float(margins.mean()),
             "mean_forecast_anomaly_prob": float(forecast_probs.mean()),
             "n_uncertain":  len(uncertain_nodes),
@@ -444,6 +581,9 @@ def main() -> None:
 
     # ── Final report ───────────────────────────────────────────────────────────
     summary = stats.summary()
+    summary["intervention_rate"] = INTERVENTION_RATE
+    summary["risk_weights"] = risk_weights
+    summary["failure_injection_rate"] = LLM_FAILURE_INJECTION_RATE
     logger.info("=" * 64)
     logger.info("SafeGAT Inference Complete")
     logger.info(f"Total reward : {total_rewards.sum():.2f}")

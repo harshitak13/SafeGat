@@ -1,132 +1,166 @@
 """
 llm/intervention_gate.py
 
-InterventionGate — decides when the LLM should intervene.
+Decision gate for selective LLM intervention.
 
-The gate scores three signals:
-    1. Low confidence  (Q-margin Δ below threshold)
-    2. Anomaly tags    (from ScenarioDetector)
-    3. Corrupted obs   (NaN / packet-loss / empty)
-
-Any non-zero total triggers LLM intervention.  The gate also provides
-``select_top_k`` for budget-constrained multi-intersection selection.
-
-Source: SafeGAT-LLM scaffold (llm/intervention_gate.py).
+The risk score exposes the five SafeGAT Eq. 31 weights explicitly:
+uncertainty, anomaly, queue pressure, waiting pressure, and safety pressure.
+The score ranks candidates under the top-K budget; hard low-confidence,
+anomaly, queue, waiting, corruption, forecast, or safety triggers open the gate.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Tuple
+from typing import Any, Dict, Iterable, List, Tuple
+
+
+DEFAULT_RISK_WEIGHTS: Dict[str, float] = {
+    "uncertainty": 2.0,
+    "anomaly": 1.5,
+    "queue": 1.0,
+    "waiting": 0.5,
+    "safety": 1.0,
+}
 
 
 @dataclass
 class GateDecision:
-    """
-    Attributes
-    ----------
-    should_intervene : bool  — True if LLM should be called
-    reasons          : List[str]  — human-readable trigger reasons
-    score_breakdown  : Dict[str, float]  — per-signal scores + total
-    """
     should_intervene: bool
-    reasons:          List[str]
-    score_breakdown:  Dict[str, float]
+    reasons: List[str]
+    score_breakdown: Dict[str, float]
 
 
 class InterventionGate:
-    """
-    Decision-theoretic gate for selective LLM intervention.
-
-    Parameters
-    ----------
-    confidence_threshold  : float — Δ below this → low_confidence trigger
-    anomaly_weight        : float — weight applied to anomaly tag count
-    corruption_weight     : float — weight applied to corruption flag
-    low_conf_weight       : float — weight applied to low-confidence flag
-    intervention_budget   : int   — max nodes to return from select_top_k
-    """
-
     def __init__(
         self,
-        confidence_threshold: float = 0.15,
-        anomaly_weight:       float = 1.0,
-        corruption_weight:    float = 1.0,
-        low_conf_weight:      float = 1.0,
-        forecast_weight:      float = 1.0,
-        forecast_threshold:   float = 0.65,
-        intervention_budget:  int   = 8,
+        confidence_threshold: float = 0.05,
+        anomaly_weight: float = DEFAULT_RISK_WEIGHTS["anomaly"],
+        corruption_weight: float = 1.0,
+        low_conf_weight: float = DEFAULT_RISK_WEIGHTS["uncertainty"],
+        queue_weight: float = DEFAULT_RISK_WEIGHTS["queue"],
+        wait_weight: float = DEFAULT_RISK_WEIGHTS["waiting"],
+        safety_weight: float = DEFAULT_RISK_WEIGHTS["safety"],
+        forecast_weight: float = 1.0,
+        forecast_threshold: float = 0.65,
+        intervention_budget: int = 8,
+        queue_trigger_threshold: float = 0.85,
+        wait_trigger_threshold: float = 0.85,
     ) -> None:
         self.confidence_threshold = confidence_threshold
-        self.anomaly_weight       = anomaly_weight
-        self.corruption_weight    = corruption_weight
-        self.low_conf_weight      = low_conf_weight
-        self.forecast_weight      = forecast_weight
-        self.forecast_threshold   = forecast_threshold
-        self.intervention_budget  = intervention_budget
+        self.anomaly_weight = anomaly_weight
+        self.corruption_weight = corruption_weight
+        self.low_conf_weight = low_conf_weight
+        self.queue_weight = queue_weight
+        self.wait_weight = wait_weight
+        self.safety_weight = safety_weight
+        self.forecast_weight = forecast_weight
+        self.forecast_threshold = forecast_threshold
+        self.intervention_budget = intervention_budget
+        self.queue_trigger_threshold = queue_trigger_threshold
+        self.wait_trigger_threshold = wait_trigger_threshold
+
+    @property
+    def risk_weights(self) -> Dict[str, float]:
+        return {
+            "uncertainty": self.low_conf_weight,
+            "anomaly": self.anomaly_weight,
+            "queue": self.queue_weight,
+            "waiting": self.wait_weight,
+            "safety": self.safety_weight,
+        }
+
+    @staticmethod
+    def _bounded(value: Any, default: float = 0.0) -> float:
+        try:
+            return max(0.0, min(1.0, float(value)))
+        except (TypeError, ValueError):
+            return default
 
     def score(
         self,
         confidence_margin: float,
-        anomaly_tags:      Iterable[str],
-        corrupted:         bool,
+        anomaly_tags: Iterable[str],
+        corrupted: bool,
         forecast_probability: float = 0.0,
+        metadata: Dict[str, Any] | None = None,
     ) -> GateDecision:
-        """
-        Score one intersection and decide whether the LLM should intervene.
-
-        Parameters
-        ----------
-        confidence_margin : float — Q(a*) − Q(a_2nd); lower = more uncertain
-        anomaly_tags      : iterable of str — tags from ScenarioDetector
-        corrupted         : bool — True if obs integrity is suspect
-
-        Returns
-        -------
-        GateDecision
-        """
-        reasons:   List[str]        = []
+        metadata = metadata or {}
+        anomaly_tags = list(anomaly_tags)
+        reasons: List[str] = []
         breakdown: Dict[str, float] = {}
 
         low_conf = float(confidence_margin < self.confidence_threshold)
-        breakdown["low_confidence"] = low_conf * self.low_conf_weight
+        uncertainty = (
+            (self.confidence_threshold - confidence_margin) / self.confidence_threshold
+            if self.confidence_threshold > 0.0 and low_conf
+            else 0.0
+        )
+        breakdown["uncertainty"] = self._bounded(uncertainty) * self.low_conf_weight
         if low_conf:
             reasons.append("low_confidence")
 
-        anomaly_count = float(len(list(anomaly_tags)))
-        breakdown["anomaly_tags"] = anomaly_count * self.anomaly_weight
+        anomaly_count = float(len(anomaly_tags))
+        breakdown["anomaly"] = min(1.0, anomaly_count) * self.anomaly_weight
         if anomaly_count > 0:
             reasons.append("anomaly_detected")
+
+        queue_pressure = self._bounded(
+            metadata.get("queue_pressure", metadata.get("current_queue", 0.0))
+        )
+        wait_pressure = self._bounded(
+            metadata.get("wait_pressure", metadata.get("waiting_pressure", 0.0))
+        )
+        transition_confidence = self._bounded(
+            metadata.get("transition_model_confidence", 1.0),
+            default=1.0,
+        )
+        safety_pressure = max(
+            float(bool(metadata.get("emergency_vehicle", False))),
+            float(bool(metadata.get("accident_flag", False))),
+            float(bool(metadata.get("yellow_phase", False))),
+            1.0 - transition_confidence,
+        )
+
+        breakdown["queue_pressure"] = queue_pressure * self.queue_weight
+        breakdown["waiting_pressure"] = wait_pressure * self.wait_weight
+        breakdown["safety_pressure"] = safety_pressure * self.safety_weight
+
+        if queue_pressure >= self.queue_trigger_threshold:
+            reasons.append("queue_pressure")
+        if wait_pressure >= self.wait_trigger_threshold:
+            reasons.append("waiting_pressure")
+        if safety_pressure > 0.0:
+            reasons.append("safety_pressure")
 
         breakdown["corrupted_observation"] = float(corrupted) * self.corruption_weight
         if corrupted:
             reasons.append("corrupted_observation")
 
-        forecast_probability = max(0.0, min(1.0, float(forecast_probability)))
+        forecast_probability = self._bounded(forecast_probability)
         breakdown["forecast_anomaly"] = forecast_probability * self.forecast_weight
         if forecast_probability >= self.forecast_threshold:
             reasons.append("forecast_anomaly")
 
         total = sum(breakdown.values())
         return GateDecision(
-            should_intervene = bool(reasons),
-            reasons          = reasons,
-            score_breakdown  = {**breakdown, "total": total},
+            should_intervene=bool(reasons),
+            reasons=reasons,
+            score_breakdown={
+                **breakdown,
+                "total": total,
+                "risk_weights": self.risk_weights,
+            },
         )
 
     def select_top_k(
         self,
         candidate_items: List[Tuple[str, GateDecision]],
     ) -> List[str]:
-        """
-        From a list of (intersection_id, GateDecision) pairs,
-        return the top-k intersection IDs ranked by gate total score,
-        up to ``intervention_budget``.
-        """
         ranked = sorted(
             candidate_items,
-            key     = lambda x: x[1].score_breakdown.get("total", 0.0),
-            reverse = True,
+            key=lambda x: x[1].score_breakdown.get("total", 0.0),
+            reverse=True,
         )
         return [
             item_id

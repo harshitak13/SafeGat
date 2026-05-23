@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
+import random
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
@@ -162,6 +164,34 @@ def neighbor_summary(tls_id: str, network: CityFlowNetwork, phases: Dict[str, in
     }
 
 
+def time_of_day(step: int, bucket_seconds: int) -> str:
+    hour = ((step * bucket_seconds) // 3600) % 24
+    if 7 <= hour < 10:
+        return "morning_peak"
+    if 16 <= hour < 19:
+        return "evening_peak"
+    if 10 <= hour < 16:
+        return "midday"
+    return "off_peak"
+
+
+def propagation_status(summary: Dict[str, Any]) -> str:
+    if not summary:
+        return "isolated_or_unknown"
+    occupancies = [
+        float(value.get("mean_occ", 0.0))
+        for value in summary.values()
+        if isinstance(value, dict)
+    ]
+    if not occupancies:
+        return "neighbor_pressure_unknown"
+    max_occ = max(occupancies)
+    mean_occ = float(np.mean(occupancies))
+    if max_occ >= 0.70:
+        return f"downstream_congested max_neighbor_occ={max_occ:.3f}"
+    return f"stable_neighbors mean_neighbor_occ={mean_occ:.3f}"
+
+
 def run_offline(args: argparse.Namespace) -> None:
     dataset_dir = Path(args.dataset_dir).resolve()
     roadnet_path = dataset_dir / args.roadnet
@@ -172,6 +202,16 @@ def run_offline(args: argparse.Namespace) -> None:
     network = load_roadnet(roadnet_path)
     impl_dir = Path(args.impl_dir).resolve() if args.impl_dir else choose_default_impl(dataset_dir, len(network.controlled_tls))
     mods = import_safegat_modules(impl_dir)
+    max_nodes_per_step = args.max_nodes_per_step
+    if args.intervention_rate is not None:
+        max_nodes_per_step = max(
+            1,
+            min(
+                len(network.controlled_tls),
+                int(math.ceil(args.intervention_rate * len(network.controlled_tls))),
+            ),
+        )
+    intervention_rate = max_nodes_per_step / max(1, len(network.controlled_tls))
 
     detector = mods["ScenarioDetector"](
         queue_spike_threshold=args.queue_spike_threshold,
@@ -179,8 +219,13 @@ def run_offline(args: argparse.Namespace) -> None:
     )
     gate = mods["InterventionGate"](
         confidence_threshold=args.confidence_threshold,
-        intervention_budget=args.max_nodes_per_step,
+        intervention_budget=max_nodes_per_step,
         forecast_threshold=args.forecast_anomaly_threshold,
+        low_conf_weight=args.weight_uncertainty,
+        anomaly_weight=args.weight_anomaly,
+        queue_weight=args.weight_queue,
+        wait_weight=args.weight_waiting,
+        safety_weight=args.weight_safety,
     )
     forecaster = mods["GRUAnomalyForecaster"](
         threshold=args.forecast_anomaly_threshold,
@@ -201,9 +246,12 @@ def run_offline(args: argparse.Namespace) -> None:
     flow_counts = load_flow_counts(flow_path, args.bucket_seconds)
     phases = {tls_id: 0 for tls_id in network.controlled_tls}
     runtimes = {tls_id: 0 for tls_id in network.controlled_tls}
+    queue_baseline = {tls_id: 0.0 for tls_id in network.controlled_tls}
     summary = Counter()
     step_log = []
     decisions_path = output_dir / "safegat_cityflow_decisions.jsonl"
+    failure_rng = random.Random(args.failure_seed)
+    all_step_queues: List[float] = []
 
     with decisions_path.open("w", encoding="utf-8") as decisions:
         for step in range(args.steps):
@@ -216,23 +264,41 @@ def run_offline(args: argparse.Namespace) -> None:
                 scores = heuristic_scores(obs, max(1, max(network.legal_actions[tls_id]) + 1))
                 rl_action = int(np.argmax(scores))
                 margin = float(margin_fn(scores))
-                scenario = detector.detect(obs, {"transition_model_source": "cityflow"})
+                current_queue = float(obs[6])
+                baseline_queue = float(queue_baseline[tls_id])
+                metadata = {
+                    "transition_model_source": "cityflow",
+                    "transition_model_confidence": args.transition_model_confidence,
+                    "phase_runtime": int(runtimes[tls_id]),
+                    "sim_step": int(step),
+                    "sim_time_s": int(step * args.bucket_seconds),
+                    "time_of_day": time_of_day(step, args.bucket_seconds),
+                    "historical_baseline_queue": round(baseline_queue, 4),
+                    "current_queue": round(current_queue, 4),
+                    "queue_pressure": round(max(current_queue, current_queue - baseline_queue), 4),
+                    "waiting_pressure": round(float(obs[2:6].mean()), 4),
+                    "event_details": "offline_cityflow_demand_bucket",
+                }
+                scenario = detector.detect(obs, metadata)
                 forecast_prob = forecaster.update_and_predict(tls_id, obs)
                 gate_result = gate.score(
                     confidence_margin=margin,
                     anomaly_tags=scenario["tags"],
                     corrupted=scenario["corrupted"],
                     forecast_probability=forecast_prob,
+                    metadata=metadata,
                 )
                 if gate_result.should_intervene:
                     candidates.append((tls_id, gate_result))
-                payloads.append((tls_id, obs, scores, rl_action, margin, scenario, forecast_prob, gate_result))
+                payloads.append((tls_id, obs, scores, rl_action, margin, scenario, forecast_prob, gate_result, metadata))
 
             selected = set(gate.select_top_k(candidates))
             step_overrides = 0
             step_adjusted = 0
+            step_queues = []
 
-            for tls_id, obs, scores, rl_action, margin, scenario, forecast_prob, gate_result in payloads:
+            for tls_id, obs, scores, rl_action, margin, scenario, forecast_prob, gate_result, metadata in payloads:
+                step_queues.append(float(obs[6]))
                 if tls_id not in selected:
                     final_action = rl_action
                     source = "rl"
@@ -242,6 +308,15 @@ def run_offline(args: argparse.Namespace) -> None:
                 else:
                     llm_called = True
                     context = corridor_cache.build_token(tls_id, network.neighbors.get(tls_id, []))
+                    nb_summary = neighbor_summary(tls_id, network, phases)
+                    metadata = {
+                        **metadata,
+                        "forecast_anomaly_prob": float(forecast_prob),
+                        "forecast_horizon": args.forecast_horizon_steps,
+                        "corridor_context": context,
+                        "propagation_status": propagation_status(nb_summary),
+                        "observation_summary": f"offline_cityflow_obs={np.round(obs, 3).tolist()}",
+                    }
                     info = RLDecisionInfo(
                         intersection_id=tls_id,
                         observation=obs.tolist(),
@@ -250,18 +325,9 @@ def run_offline(args: argparse.Namespace) -> None:
                         action_scores=[float(item) for item in scores],
                         confidence_margin=margin,
                         legal_actions=network.legal_actions[tls_id],
-                        neighbor_summary=neighbor_summary(tls_id, network, phases),
+                        neighbor_summary=nb_summary,
                         anomaly_tags=list(scenario["tags"]),
-                        metadata={
-                            "phase_runtime": int(runtimes[tls_id]),
-                            "sim_step": int(step),
-                            "forecast_anomaly_prob": float(forecast_prob),
-                            "forecast_horizon": args.forecast_horizon_steps,
-                            "transition_model_source": "cityflow",
-                            "transition_model_confidence": args.transition_model_confidence,
-                            "corridor_context": context,
-                            "observation_summary": f"offline_cityflow_obs={np.round(obs, 3).tolist()}",
-                        },
+                        metadata=metadata,
                     )
                     prompt_preview = prompt_builder.build(info)[:500]
                     final_action = rl_action
@@ -271,6 +337,14 @@ def run_offline(args: argparse.Namespace) -> None:
                         "final_phase": int(rl_action),
                         "reason": "offline audit mode; no external LLM call",
                     }
+                    if failure_rng.random() < args.failure_injection_rate:
+                        source = "llm_failure_fallback"
+                        summary["llm_failures"] += 1
+                        llm_decision = {
+                            "decision": "accept",
+                            "final_phase": int(rl_action),
+                            "reason": "injected failure; fallback to RL action",
+                        }
 
                 shield_result = shield.validate(
                     proposed_action=final_action,
@@ -314,6 +388,7 @@ def run_offline(args: argparse.Namespace) -> None:
                         "forecast_anomaly_prob": forecast_prob,
                         "anomaly_tags": scenario["tags"],
                         "gate": gate_result.score_breakdown,
+                        "risk_weights": gate.risk_weights,
                         "safety_adjusted": shield_result.adjusted,
                         "shield_reason": shield_result.reason,
                         "llm_decision": llm_decision,
@@ -323,12 +398,19 @@ def run_offline(args: argparse.Namespace) -> None:
             summary["steps"] += 1
             summary["safety_adjustments"] += step_adjusted
             summary["rl_overrides"] += step_overrides
+            summary["queue_samples"] += len(step_queues)
+            summary["queue_sum"] += float(np.sum(step_queues))
+            all_step_queues.append(float(np.mean(step_queues)) if step_queues else 0.0)
+            for tls_id, obs, *_ in payloads:
+                queue_baseline[tls_id] = 0.98 * queue_baseline[tls_id] + 0.02 * float(obs[6])
             step_log.append({
                 "step": step,
                 "active_flow_roads": len(road_counts),
                 "selected_for_llm_audit": len(selected),
                 "safety_adjustments": step_adjusted,
                 "rl_overrides": step_overrides,
+                "mean_queue": float(np.mean(step_queues)) if step_queues else 0.0,
+                "intervention_rate": intervention_rate,
             })
 
     graph_payload = {
@@ -340,7 +422,20 @@ def run_offline(args: argparse.Namespace) -> None:
     }
     (output_dir / "cityflow_graph.json").write_text(json.dumps(graph_payload, indent=2), encoding="utf-8")
     (output_dir / "step_log.json").write_text(json.dumps(step_log, indent=2), encoding="utf-8")
-    (output_dir / "intervention_summary.json").write_text(json.dumps(dict(summary), indent=2), encoding="utf-8")
+    summary_payload = dict(summary)
+    queue_samples = max(1, int(summary_payload.pop("queue_samples", 0)))
+    queue_sum = float(summary_payload.pop("queue_sum", 0.0))
+    summary_payload["mean_queue"] = queue_sum / queue_samples
+    summary_payload["att_proxy"] = (
+        float(np.mean(all_step_queues)) * args.bucket_seconds
+        if all_step_queues else 0.0
+    )
+    summary_payload["intervention_rate"] = intervention_rate
+    summary_payload["max_nodes_per_step"] = max_nodes_per_step
+    summary_payload["risk_weights"] = gate.risk_weights
+    summary_payload["confidence_threshold"] = args.confidence_threshold
+    summary_payload["failure_injection_rate"] = args.failure_injection_rate
+    (output_dir / "intervention_summary.json").write_text(json.dumps(summary_payload, indent=2), encoding="utf-8")
 
     print(f"Loaded {len(network.controlled_tls)} controlled intersections from {roadnet_path.name}")
     print(f"Using modified SafeGAT modules from: {impl_dir}")
@@ -358,6 +453,14 @@ def build_arg_parser() -> argparse.ArgumentParser:
     parser.add_argument("--bucket-seconds", type=int, default=30)
     parser.add_argument("--confidence-threshold", type=float, default=0.05)
     parser.add_argument("--max-nodes-per-step", type=int, default=4)
+    parser.add_argument("--intervention-rate", type=float, default=None, help="Optional K/N rate; overrides --max-nodes-per-step")
+    parser.add_argument("--failure-injection-rate", type=float, default=0.0, help="Randomly reject this fraction of selected LLM audit responses")
+    parser.add_argument("--failure-seed", type=int, default=42)
+    parser.add_argument("--weight-uncertainty", type=float, default=2.0)
+    parser.add_argument("--weight-anomaly", type=float, default=1.5)
+    parser.add_argument("--weight-queue", type=float, default=1.0)
+    parser.add_argument("--weight-waiting", type=float, default=0.5)
+    parser.add_argument("--weight-safety", type=float, default=1.0)
     parser.add_argument("--min-green-hold", type=int, default=3)
     parser.add_argument("--transition-model-confidence", type=float, default=0.5)
     parser.add_argument("--transition-confidence-threshold", type=float, default=0.75)
