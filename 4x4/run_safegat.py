@@ -225,6 +225,10 @@ def main() -> None:
 
     config = read_config()
     device = "cuda" if torch.cuda.is_available() else "cpu"
+    llm_cfg = config.get("llm", {})
+    transition_confidence_threshold = float(
+        llm_cfg.get("transition_confidence_threshold", 0.75)
+    )
 
     # ── Load trained GAT-DQN ──────────────────────────────────────────────────
     trainer = FastGATDQNTrainer(
@@ -260,7 +264,10 @@ def main() -> None:
             max_backoff_retries = 5,
             backoff_wait_s      = 30.0,
         ),
-        safety_shield  = SafetyShield(min_green_hold=MIN_GREEN_STEPS),
+        safety_shield  = SafetyShield(
+            min_green_hold=MIN_GREEN_STEPS,
+            transition_confidence_threshold=transition_confidence_threshold,
+        ),
         decision_logger = DecisionLogger(
             os.path.join(RESULT_PATH, "llm", "safegat_decisions.jsonl")
         ),
@@ -307,10 +314,13 @@ def main() -> None:
 
         # ── Step 3: Build anomaly flags from raw obs ───────────────────────────
         # Reuse ScenarioDetector at batch level for efficiency
-        anomaly_flags = np.array([
+        reactive_anomaly_flags = np.array([
             bool(refiner.detector.detect(obs[i], infos[i])["tags"])
             for i in range(NUM_NODES)
         ])
+        forecast_probs = refiner.anomaly_forecaster.update_many(CONTROLLED_TLS, obs)
+        forecast_flags = forecast_probs >= refiner.anomaly_forecaster.threshold
+        anomaly_flags = reactive_anomaly_flags | forecast_flags
 
         # ── Step 4: Select nodes for LLM review ───────────────────────────────
         uncertain_nodes = select_uncertain_nodes(margins, anomaly_flags, Q_MARGIN_TAU)
@@ -347,6 +357,11 @@ def main() -> None:
                     anomaly_tags      = [],
                     metadata          = {
                         "phase_runtime":        int(phase_runtime[node_idx]),
+                        "sim_step":             int(sim_step),
+                        "transition_model_source": "sumo",
+                        "transition_model_confidence": 1.0,
+                        "forecast_anomaly_prob": float(forecast_probs[node_idx]),
+                        "forecast_horizon":     3,
                         "emergency_vehicle":    bool(obs[node_idx, 7] > 0.5),
                         "information_missing":  info.get("information_missing", False),
                         "observation_summary":  (
@@ -357,7 +372,12 @@ def main() -> None:
                     },
                 )
 
-                reason = "anomaly" if anomaly_flags[node_idx] else "uncertain"
+                if reactive_anomaly_flags[node_idx]:
+                    reason = "anomaly"
+                elif forecast_flags[node_idx]:
+                    reason = "forecast_anomaly"
+                else:
+                    reason = "uncertain"
                 stats.record_call(margin=float(margins[node_idx]), reason=reason)
 
                 try:
@@ -403,7 +423,9 @@ def main() -> None:
             "mean_reward":  float(rewards.mean()),
             "mean_occ":     float(obs[:, 2:6].mean()),
             "mean_margin":  float(margins.mean()),
+            "mean_forecast_anomaly_prob": float(forecast_probs.mean()),
             "n_uncertain":  len(uncertain_nodes),
+            "n_forecast":   int(forecast_flags.sum()),
             "llm_calls":    stats.llm_calls,
             "budget_left":  llm_budget_remaining,
         })

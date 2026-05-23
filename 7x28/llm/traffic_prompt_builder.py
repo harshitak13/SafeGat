@@ -69,6 +69,8 @@ class TrafficPromptBuilder:
         )
         legal_actions = ", ".join(str(x) for x in info.legal_actions)
         obs_summary   = info.metadata.get("observation_summary", str(info.observation))
+        corridor_context = info.metadata.get("corridor_context", "none")
+        forecast_prob = float(info.metadata.get("forecast_anomaly_prob", 0.0))
 
         return (
             f"You are a traffic-signal control verifier for a multi-intersection "
@@ -82,8 +84,11 @@ class TrafficPromptBuilder:
             f"Confidence margin: {info.confidence_margin:.4f}\n"
             f"Action scores    : {action_scores}\n"
             f"Anomaly tags     : {anomaly_text}\n"
+            f"Forecast p(+2-3) : {forecast_prob:.3f}\n"
             f"Observation      : {obs_summary}\n"
-            f"Neighbour summary:\n" + "\n".join(neighbor_lines) + "\n\n"
+            f"Neighbour summary:\n" + "\n".join(neighbor_lines) + "\n"
+            f"Corridor context (cached recent LLM decisions; avoid conflicts): "
+            f"{corridor_context}\n\n"
             f'Output schema:\n'
             f'{{"decision": "accept" or "override", '
             f'"final_phase": integer, '

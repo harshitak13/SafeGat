@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from typing import Optional
 
+from .anomaly_forecaster import GRUAnomalyForecaster
+from .corridor_context import CorridorContextCache
 from .decision_logger    import DecisionLogger
 from .intervention_gate  import InterventionGate
 from .llm_gateway        import LLMGateway
@@ -55,6 +57,8 @@ class SafeGATRefiner:
         llm_gateway:     LLMGateway,
         safety_shield:   SafetyShield,
         decision_logger: Optional[DecisionLogger] = None,
+        corridor_cache:  Optional[CorridorContextCache] = None,
+        anomaly_forecaster: Optional[GRUAnomalyForecaster] = None,
     ) -> None:
         self.detector        = detector
         self.gate            = gate
@@ -62,6 +66,8 @@ class SafeGATRefiner:
         self.llm_gateway     = llm_gateway
         self.safety_shield   = safety_shield
         self.decision_logger = decision_logger
+        self.corridor_cache  = corridor_cache or CorridorContextCache()
+        self.anomaly_forecaster = anomaly_forecaster or GRUAnomalyForecaster()
 
     def refine(self, info: RLDecisionInfo) -> RefineResult:
         """
@@ -79,12 +85,21 @@ class SafeGATRefiner:
         scenario = self.detector.detect(info.observation, info.metadata)
         # Merge newly detected tags into the info (dedup, sorted for stable logging)
         info.anomaly_tags = sorted(set(info.anomaly_tags + scenario["tags"]))
+        if "forecast_anomaly_prob" not in info.metadata:
+            info.metadata["forecast_anomaly_prob"] = (
+                self.anomaly_forecaster.update_and_predict(
+                    info.intersection_id,
+                    info.observation,
+                )
+            )
+        forecast_probability = float(info.metadata.get("forecast_anomaly_prob", 0.0))
 
         # ── 2. Intervention gate ───────────────────────────────────────────────
         gate_result = self.gate.score(
             confidence_margin = info.confidence_margin,
             anomaly_tags      = info.anomaly_tags,
             corrupted         = scenario["corrupted"],
+            forecast_probability = forecast_probability,
         )
 
         # ── 3. Conditional LLM call ────────────────────────────────────────────
@@ -93,9 +108,15 @@ class SafeGATRefiner:
         chosen_action = info.rl_action
         source        = "rl"
         trigger_reason = ",".join(gate_result.reasons) if gate_result.reasons else "none"
+        corridor_context = "none"
 
         if gate_result.should_intervene:
             llm_called = True
+            corridor_context = self.corridor_cache.build_token(
+                info.intersection_id,
+                info.neighbor_summary.keys(),
+            )
+            info.metadata["corridor_context"] = corridor_context
             prompt     = self.prompt_builder.build(info)
             llm_decision = self.llm_gateway.query(
                 prompt, label=info.intersection_id
@@ -125,11 +146,27 @@ class SafeGATRefiner:
             debug={
                 "gate":           gate_result.score_breakdown,
                 "shield_reason":  shield.reason,
+                "transition_model_confidence": (
+                    self.safety_shield._transition_confidence(info.metadata)
+                ),
                 "scenario_tags":  info.anomaly_tags,
+                "forecast_anomaly_prob": forecast_probability,
+                "corridor_context": corridor_context,
             },
         )
 
         # ── 5. Audit logging ───────────────────────────────────────────────────
+        if llm_called and llm_decision is not None:
+            self.corridor_cache.update(
+                intersection_id = info.intersection_id,
+                rl_action       = info.rl_action,
+                final_action    = result.final_action,
+                source          = result.source,
+                reason          = llm_decision.reason,
+                anomaly_tags    = info.anomaly_tags,
+                step            = info.metadata.get("sim_step"),
+            )
+
         if self.decision_logger is not None:
             self.decision_logger.log({
                 "intersection_id":   info.intersection_id,
@@ -140,6 +177,7 @@ class SafeGATRefiner:
                 "trigger_reason":    result.trigger_reason,
                 "safety_adjusted":   result.safety_adjusted,
                 "confidence_margin": info.confidence_margin,
+                "forecast_anomaly_prob": forecast_probability,
                 "action_scores":     info.action_scores,
                 "anomaly_tags":      info.anomaly_tags,
                 "llm_called":        result.llm_called,

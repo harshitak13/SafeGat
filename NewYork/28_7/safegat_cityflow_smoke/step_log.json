@@ -1,0 +1,9 @@
+[
+  {
+    "step": 0,
+    "active_flow_roads": 39,
+    "selected_for_llm_audit": 8,
+    "safety_adjustments": 25,
+    "rl_overrides": 25
+  }
+]

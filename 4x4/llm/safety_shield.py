@@ -20,7 +20,7 @@ logic from iLLM-TSC2 (run_grid_llm.py SafetyLayer).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, Iterable, Optional, Set
+from typing import Any, Dict, Iterable, Optional, Set
 
 # Phase indices treated as yellow (must not be switched away from)
 _YELLOW_PHASES: Set[int] = {1, 3}
@@ -49,8 +49,13 @@ class SafetyShield:
     min_green_hold : int — minimum steps a green phase must be held (default 3)
     """
 
-    def __init__(self, min_green_hold: int = 3) -> None:
+    def __init__(
+        self,
+        min_green_hold: int = 3,
+        transition_confidence_threshold: float = 0.75,
+    ) -> None:
         self.min_green_hold = min_green_hold
+        self.transition_confidence_threshold = transition_confidence_threshold
 
     def validate(
         self,
@@ -77,6 +82,22 @@ class SafetyShield:
         """
         metadata      = metadata or {}
         legal_actions = list(legal_actions)
+        transition_confidence = self._transition_confidence(metadata)
+
+        # Rule -1: missing or empty T_i. On real/offline datasets, do not repair
+        # from a SUMO-derived default when the controller constraints are absent.
+        if not legal_actions:
+            if current_phase is not None:
+                return ShieldResult(
+                    action   = int(current_phase),
+                    adjusted = proposed_action != current_phase,
+                    reason   = "transition_model_missing_hold_current",
+                )
+            return ShieldResult(
+                action   = int(proposed_action),
+                adjusted = False,
+                reason   = "accepted_no_transition_model",
+            )
 
         # Rule 0: Yellow-phase lock — never switch away during yellow
         if current_phase is not None and current_phase in _YELLOW_PHASES:
@@ -88,7 +109,24 @@ class SafetyShield:
                     reason   = "yellow_phase_lock",
                 )
 
-        # Rule 1: Illegal action repair
+        # Rule 1: Conservative T_i fallback. If the transition/action set came
+        # from incomplete real firmware or misspecified offline data, preserve
+        # the safety guarantee by extending the current phase instead of switching.
+        if (
+            current_phase is not None
+            and proposed_action != current_phase
+            and transition_confidence < self.transition_confidence_threshold
+        ):
+            return ShieldResult(
+                action   = int(current_phase),
+                adjusted = True,
+                reason   = (
+                    "low_transition_confidence_hold_current "
+                    f"({transition_confidence:.2f}<{self.transition_confidence_threshold:.2f})"
+                ),
+            )
+
+        # Rule 2: Illegal action repair
         if proposed_action not in legal_actions:
             fallback = (
                 current_phase
@@ -101,7 +139,7 @@ class SafetyShield:
                 reason   = "illegal_action_repaired",
             )
 
-        # Rule 2: Minimum green hold
+        # Rule 3: Minimum green hold
         if (
             current_phase is not None
             and proposed_action != current_phase
@@ -115,3 +153,30 @@ class SafetyShield:
             )
 
         return ShieldResult(action=int(proposed_action), adjusted=False, reason="accepted")
+
+    def _transition_confidence(self, metadata: Dict[str, Any]) -> float:
+        """Return confidence in T_i, defaulting to high confidence for SUMO."""
+        confidence_keys = (
+            "transition_model_confidence",
+            "ti_confidence",
+            "constraint_confidence",
+            "legal_action_confidence",
+        )
+        for key in confidence_keys:
+            if key in metadata and metadata[key] is not None:
+                return max(0.0, min(1.0, float(metadata[key])))
+
+        low_confidence_flags = (
+            "transition_model_missing",
+            "transition_constraints_missing",
+            "controller_firmware_unknown",
+            "misspecified_constraints",
+            "information_missing",
+        )
+        if any(bool(metadata.get(flag, False)) for flag in low_confidence_flags):
+            return 0.0
+
+        source = str(metadata.get("transition_model_source", "sumo")).lower()
+        if source in {"real", "offline", "cityflow", "firmware", "unknown"}:
+            return 0.0
+        return 1.0

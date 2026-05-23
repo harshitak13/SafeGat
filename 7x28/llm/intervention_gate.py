@@ -53,12 +53,16 @@ class InterventionGate:
         anomaly_weight:       float = 1.0,
         corruption_weight:    float = 1.0,
         low_conf_weight:      float = 1.0,
+        forecast_weight:      float = 1.0,
+        forecast_threshold:   float = 0.65,
         intervention_budget:  int   = 8,
     ) -> None:
         self.confidence_threshold = confidence_threshold
         self.anomaly_weight       = anomaly_weight
         self.corruption_weight    = corruption_weight
         self.low_conf_weight      = low_conf_weight
+        self.forecast_weight      = forecast_weight
+        self.forecast_threshold   = forecast_threshold
         self.intervention_budget  = intervention_budget
 
     def score(
@@ -66,6 +70,7 @@ class InterventionGate:
         confidence_margin: float,
         anomaly_tags:      Iterable[str],
         corrupted:         bool,
+        forecast_probability: float = 0.0,
     ) -> GateDecision:
         """
         Score one intersection and decide whether the LLM should intervene.
@@ -97,9 +102,14 @@ class InterventionGate:
         if corrupted:
             reasons.append("corrupted_observation")
 
+        forecast_probability = max(0.0, min(1.0, float(forecast_probability)))
+        breakdown["forecast_anomaly"] = forecast_probability * self.forecast_weight
+        if forecast_probability >= self.forecast_threshold:
+            reasons.append("forecast_anomaly")
+
         total = sum(breakdown.values())
         return GateDecision(
-            should_intervene = total > 0.0,
+            should_intervene = bool(reasons),
             reasons          = reasons,
             score_breakdown  = {**breakdown, "total": total},
         )

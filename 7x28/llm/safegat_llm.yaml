@@ -18,6 +18,7 @@ llm:
 
   # Safety shield
   min_green_hold: 3                 # min steps before a green phase may switch
+  transition_confidence_threshold: 0.75 # below this, hold current phase
 
   # Logging
   log_file: "output/llm/safegat_decisions.jsonl"
@@ -47,6 +48,9 @@ llm:
   # Scenario detector thresholds
   queue_spike_threshold:               0.85
   zero_fraction_corruption_threshold:  0.90
+  forecast_anomaly_threshold:          0.65
+  forecast_horizon_steps:              3
+  forecast_history_len:                4
 
   # Anomaly tags that trigger gate even if confidence is high
   anomaly_triggers:
@@ -55,3 +59,4 @@ llm:
     - possible_packet_loss
     - nan_observation
     - queue_spike
+    - forecast_anomaly
