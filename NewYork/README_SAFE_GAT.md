@@ -1,11 +1,20 @@
-# NewYork SafeGAT CityFlow Adapter
+# NewYork SafeGAT CityFlow Controller
 
-This folder now has a runnable offline adapter for the modified SafeGAT stack.
-It loads a NewYork roadnet/flow pair, builds the junction graph, applies the
-updated risk gate, GRU anomaly forecast, corridor cache, and low-confidence
-`T_i` safety fallback.
+This folder now runs SafeGAT on the NewYork CityFlow dataset with the same
+workflow as `4x4` and `7x28`:
 
-Default run uses the 28x7 dataset:
+1. train a GAT-DQN checkpoint on live CityFlow simulation;
+2. load `models/gat_dqn_final.pt`;
+3. run live CityFlow control with SafeGAT uncertainty gating, real LLM
+   prompting, anomaly forecasting, corridor context, and safety shielding.
+
+Default 28x7 training:
+
+```bash
+python NewYork/train_cityflow.py
+```
+
+Default 28x7 live SafeGAT-LLM control:
 
 ```bash
 python NewYork/run_safegat_cityflow.py
@@ -14,17 +23,23 @@ python NewYork/run_safegat_cityflow.py
 To run the 16x3 dataset:
 
 ```bash
+python NewYork/train_cityflow.py ^
+  --dataset-dir NewYork/16_3 ^
+  --roadnet roadnet_16_3.json ^
+  --flow anon_16_3_newyork_real.json ^
+  --impl-dir 4x4 ^
+  --gat-heads 4
+
 python NewYork/run_safegat_cityflow.py ^
   --dataset-dir NewYork/16_3 ^
   --roadnet roadnet_16_3.json ^
   --flow anon_16_3_newyork_real.json ^
   --impl-dir 4x4 ^
-  --max-nodes-per-step 4
+  --gat-heads 4
 ```
 
-Outputs are written under the selected dataset folder in
-`safegat_cityflow_output/`.
+Training writes `NewYork/28_7/models/gat_dqn_final.pt` by default.
+Inference writes logs under `NewYork/28_7/safegat_cityflow_live_output/`.
 
-This is an offline audit runner, not a live CityFlow simulator controller. It is
-meant to bring the modified SafeGAT logic into the real dataset folder and
-exercise the new conservative CityFlow safety fallback.
+The live runner requires the CityFlow Python package and the same LLM config
+used by the `7x28` SafeGAT implementation.

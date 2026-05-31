@@ -1,12 +1,28 @@
 {
   "total_sim_steps": 320,
-  "llm_calls": 640,
-  "llm_overrides": 230,
-  "safety_adjustments": 213,
-  "override_rate_%": 35.94,
-  "mean_confidence": 0.5,
-  "mean_margin_at_call": 0.0007,
+  "llm_calls": 132,
+  "llm_failures": 132,
+  "safe_fallback_holds": 132,
+  "llm_overrides": 0,
+  "safety_adjustments": 0,
+  "override_rate_%": 0.0,
+  "mean_confidence": 0.0,
+  "mean_margin_at_call": 0.0256,
+  "override_precision_%": null,
+  "mean_override_q_delta": null,
+  "override_quality_metric": "current_state_q_proxy",
   "calls_by_reason": {
-    "anomaly": 640
-  }
+    "anomaly": 132
+  },
+  "intervention_rate": 0.08333333333333333,
+  "risk_weights": {
+    "uncertainty": 2.0,
+    "anomaly": 1.5,
+    "queue": 1.0,
+    "waiting": 0.5,
+    "safety": 1.0
+  },
+  "failure_injection_rate": 0.0,
+  "fallback_to_rl": false,
+  "rate_limit_cooldown_s": 300
 }

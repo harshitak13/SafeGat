@@ -36,6 +36,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import time
 from collections import defaultdict
 from typing import Optional
 
@@ -77,6 +78,16 @@ def _env_int(name: str, default: int) -> int:
         return int(os.environ.get(name, default))
     except (TypeError, ValueError):
         return default
+
+
+def _cfg_bool(value, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on"}
+    return bool(value)
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 _ROOT       = os.path.dirname(os.path.abspath(__file__))
@@ -129,6 +140,8 @@ class InterventionStats:
     def __init__(self) -> None:
         self.total_steps        = 0
         self.llm_calls          = 0
+        self.llm_failures       = 0
+        self.safe_fallback_holds = 0
         self.llm_overrides      = 0
         self.safety_adjustments = 0
         self.confidence_scores: list = []
@@ -157,11 +170,18 @@ class InterventionStats:
             self.safety_adjustments += 1
         self.confidence_scores.append(confidence)
 
+    def record_llm_failure(self, held_current_phase: bool) -> None:
+        self.llm_failures += 1
+        if held_current_phase:
+            self.safe_fallback_holds += 1
+
     def summary(self) -> dict:
         n = max(self.llm_calls, 1)
         return {
             "total_sim_steps":      self.total_steps,
             "llm_calls":            self.llm_calls,
+            "llm_failures":         self.llm_failures,
+            "safe_fallback_holds":  self.safe_fallback_holds,
             "llm_overrides":        self.llm_overrides,
             "safety_adjustments":   self.safety_adjustments,
             "override_rate_%":      round(100 * self.llm_overrides / n, 2),
@@ -317,15 +337,67 @@ def _risk_weights_from_config(llm_cfg: dict) -> dict:
     return weights
 
 
+def _current_legal_phase(last_phase: np.ndarray, obs: np.ndarray, node_idx: int) -> int:
+    current = (
+        int(last_phase[node_idx])
+        if last_phase[node_idx] >= 0
+        else int(round(float(obs[node_idx, 0]) * max(NUM_ACTIONS - 1, 1)))
+    )
+    if 0 <= current < NUM_ACTIONS:
+        return current
+    return 0
+
+
 # ── Main inference loop ────────────────────────────────────────────────────────
 
 def main() -> None:
+    global Q_MARGIN_TAU, LLM_BUDGET, INTERVENTION_RATE, MAX_NODES_PER_STEP
+
     os.makedirs(LOG_PATH,    exist_ok=True)
     os.makedirs(RESULT_PATH, exist_ok=True)
 
     config = read_config()
     device = "cuda" if torch.cuda.is_available() else "cpu"
     llm_cfg = config.get("llm", {})
+    Q_MARGIN_TAU = _env_float(
+        "SAFEGAT_CONFIDENCE_THRESHOLD",
+        float(llm_cfg.get("confidence_threshold", Q_MARGIN_TAU)),
+    )
+    LLM_BUDGET = _env_int(
+        "SAFEGAT_LLM_BUDGET",
+        int(llm_cfg.get("intervention_budget", LLM_BUDGET)),
+    )
+    cfg_max_nodes_per_step = int(llm_cfg.get("max_nodes_per_step", MAX_NODES_PER_STEP))
+    if os.environ.get("SAFEGAT_INTERVENTION_RATE"):
+        cfg_intervention_rate = _env_float(
+            "SAFEGAT_INTERVENTION_RATE",
+            cfg_max_nodes_per_step / NUM_NODES,
+        )
+        MAX_NODES_PER_STEP = max(
+            1,
+            min(NUM_NODES, int(math.ceil(cfg_intervention_rate * NUM_NODES))),
+        )
+    else:
+        MAX_NODES_PER_STEP = max(
+            1,
+            min(
+                NUM_NODES,
+                _env_int("SAFEGAT_MAX_NODES_PER_STEP", cfg_max_nodes_per_step),
+            ),
+        )
+    INTERVENTION_RATE = MAX_NODES_PER_STEP / NUM_NODES
+    min_call_interval_s = float(llm_cfg.get("min_call_interval_s", 15.0))
+    backoff_wait_s = float(llm_cfg.get("backoff_wait_s", 75.0))
+    max_backoff_retries = int(llm_cfg.get("max_backoff_retries", 1))
+    fallback_to_rl = _cfg_bool(llm_cfg.get("fallback_to_rl"), False)
+    rate_limit_cooldown_steps = _env_int(
+        "SAFEGAT_RATE_LIMIT_COOLDOWN_STEPS",
+        int(llm_cfg.get("rate_limit_cooldown_steps", 60)),
+    )
+    rate_limit_cooldown_s = _env_int(
+        "SAFEGAT_RATE_LIMIT_COOLDOWN_S",
+        int(llm_cfg.get("rate_limit_cooldown_s", 300)),
+    )
     transition_confidence_threshold = float(
         llm_cfg.get("transition_confidence_threshold", 0.75)
     )
@@ -366,9 +438,9 @@ def main() -> None:
         prompt_builder = TrafficPromptBuilder(),
         llm_gateway    = LLMGateway(
             backend             = backend,
-            min_call_interval_s = 4.0,
-            max_backoff_retries = 5,
-            backoff_wait_s      = 30.0,
+            min_call_interval_s = min_call_interval_s,
+            max_backoff_retries = max_backoff_retries,
+            backoff_wait_s      = backoff_wait_s,
             failure_injection_rate = LLM_FAILURE_INJECTION_RATE,
             failure_rng_seed    = 42,
         ),
@@ -383,6 +455,10 @@ def main() -> None:
 
     stats                = InterventionStats()
     llm_budget_remaining = LLM_BUDGET
+    llm_cooldown: dict[int, int] = {}
+    llm_global_cooldown_until = 0
+    llm_global_cooldown_until_ts = 0.0
+    last_global_cooldown_log_step = -1
 
     # ── Phase-runtime tracking (for safety shield) ─────────────────────────────
     phase_runtime = np.zeros(NUM_NODES, dtype=int)
@@ -412,7 +488,9 @@ def main() -> None:
     logger.info(
         f"SafeGAT inference start  |  τ={Q_MARGIN_TAU}  |  B={LLM_BUDGET}  "
         f"|  max_per_step={MAX_NODES_PER_STEP}  |  K/N={INTERVENTION_RATE:.4f}  "
-        f"|  t_min={MIN_GREEN_STEPS}  |  failure_rate={LLM_FAILURE_INJECTION_RATE:.2f}"
+        f"|  t_min={MIN_GREEN_STEPS}  |  failure_rate={LLM_FAILURE_INJECTION_RATE:.2f}  "
+        f"|  min_interval={min_call_interval_s}s  |  backoff={backoff_wait_s}s  "
+        f"|  retries={max_backoff_retries}  |  fallback_to_rl={fallback_to_rl}"
     )
 
     while not done:
@@ -436,6 +514,31 @@ def main() -> None:
         uncertain_nodes = select_uncertain_nodes(margins, anomaly_flags, Q_MARGIN_TAU)
 
         final_actions = rl_actions.copy()
+
+        if uncertain_nodes and llm_budget_remaining > 0:
+            now_wall = time.time()
+            if llm_global_cooldown_until > sim_step or llm_global_cooldown_until_ts > now_wall:
+                if not fallback_to_rl:
+                    for idx in uncertain_nodes:
+                        final_actions[idx] = _current_legal_phase(last_phase, obs, idx)
+                if last_global_cooldown_log_step < 0 or sim_step - last_global_cooldown_log_step >= 10:
+                    remaining_s = max(0.0, llm_global_cooldown_until_ts - now_wall)
+                    logger.info(
+                        f"[SafeGAT] step={sim_step:>4}  |  global LLM cooldown "
+                        f"for {remaining_s:.0f}s; holding current phase"
+                    )
+                    last_global_cooldown_log_step = sim_step
+                uncertain_nodes = []
+            else:
+                eligible_nodes = [
+                    n for n in uncertain_nodes
+                    if llm_cooldown.get(n, 0) <= sim_step
+                ]
+                if not fallback_to_rl:
+                    for idx in uncertain_nodes:
+                        if idx not in eligible_nodes:
+                            final_actions[idx] = _current_legal_phase(last_phase, obs, idx)
+                uncertain_nodes = eligible_nodes
 
         if uncertain_nodes and llm_budget_remaining > 0:
             nodes_to_review = uncertain_nodes[:min(MAX_NODES_PER_STEP, llm_budget_remaining)]
@@ -528,14 +631,37 @@ def main() -> None:
                         quality         = result.debug.get("override_quality"),
                     )
                 except Exception as exc:
-                    logger.warning(
-                        f"[SafeGAT] refine failed for {tls_id}: {exc!r}  → RL fallback"
-                    )
+                    if fallback_to_rl:
+                        logger.warning(
+                            f"[SafeGAT] refine failed for {tls_id}: {exc!r}  -> RL fallback"
+                        )
+                        stats.record_llm_failure(held_current_phase=False)
+                    else:
+                        hold_action = _current_legal_phase(last_phase, obs, node_idx)
+                        final_actions[node_idx] = hold_action
+                        stats.record_llm_failure(held_current_phase=True)
+                        logger.warning(
+                            f"[SafeGAT] refine failed for {tls_id}: {exc!r}  "
+                            f"-> holding current phase={hold_action} instead of RL"
+                        )
+                    llm_cooldown[node_idx] = sim_step + 30
+                    if "rate-limit" in str(exc).lower() or "rate_limit" in str(exc).lower() or "429" in str(exc):
+                        llm_global_cooldown_until = sim_step + rate_limit_cooldown_steps
+                        llm_global_cooldown_until_ts = time.time() + rate_limit_cooldown_s
+                        logger.warning(
+                            f"[SafeGAT] global LLM cooldown set until "
+                            f"step={llm_global_cooldown_until} / {rate_limit_cooldown_s}s "
+                            f"after provider rate limit"
+                        )
 
         elif llm_budget_remaining <= 0 and uncertain_nodes:
+            if not fallback_to_rl:
+                for idx in uncertain_nodes:
+                    final_actions[idx] = _current_legal_phase(last_phase, obs, idx)
             logger.warning(
                 f"[SafeGAT] step={sim_step}  |  budget exhausted  "
-                f"|  {len(uncertain_nodes)} uncertain nodes forced to RL"
+                f"|  {len(uncertain_nodes)} uncertain nodes forced to "
+                f"{'RL' if fallback_to_rl else 'hold_current'}"
             )
 
         # ── Step 5: Execute final actions ─────────────────────────────────────
@@ -584,6 +710,8 @@ def main() -> None:
     summary["intervention_rate"] = INTERVENTION_RATE
     summary["risk_weights"] = risk_weights
     summary["failure_injection_rate"] = LLM_FAILURE_INJECTION_RATE
+    summary["fallback_to_rl"] = fallback_to_rl
+    summary["rate_limit_cooldown_s"] = rate_limit_cooldown_s
     logger.info("=" * 64)
     logger.info("SafeGAT Inference Complete")
     logger.info(f"Total reward : {total_rewards.sum():.2f}")

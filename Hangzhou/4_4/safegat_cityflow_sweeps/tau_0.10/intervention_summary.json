@@ -1,0 +1,19 @@
+{
+  "llm_calls": 480,
+  "steps": 120,
+  "safety_adjustments": 482,
+  "rl_overrides": 482,
+  "mean_queue": 0.03884114583333332,
+  "att_proxy": 1.165234375,
+  "intervention_rate": 0.25,
+  "max_nodes_per_step": 4,
+  "risk_weights": {
+    "uncertainty": 2.0,
+    "anomaly": 1.5,
+    "queue": 1.0,
+    "waiting": 0.5,
+    "safety": 1.0
+  },
+  "confidence_threshold": 0.1,
+  "failure_injection_rate": 0.0
+}

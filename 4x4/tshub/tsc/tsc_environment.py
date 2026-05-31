@@ -16,6 +16,7 @@ Interface:
 
 import cmd
 import os
+import socket
 import traci
 import sumolib
 from loguru import logger
@@ -42,7 +43,7 @@ class TSCEnvironment:
         yellow_time: int = 3,
         min_green: int = 5,
         max_green: int = 42,
-        port_offset: int = 0,
+        port_offset: Optional[int] = None,
     ):
         self.sumo_cfg        = sumo_cfg
         self.net_file        = net_file
@@ -69,7 +70,13 @@ class TSCEnvironment:
         # Load net to find incoming edges for this TLS
         self._incoming_edges: list = []
         self._load_net_info()
-        self._port = 8813 + int(port_offset)
+        self._port = self._find_free_port() if port_offset is None else 8813 + int(port_offset)
+
+    @staticmethod
+    def _find_free_port() -> int:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            return int(sock.getsockname()[1])
 
 
     # ── net info ─────────────────────────────────────────────────────────────

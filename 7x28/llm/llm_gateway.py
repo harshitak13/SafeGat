@@ -45,32 +45,27 @@ class _RateLimiter:
     """
     Thread-safe minimum-interval rate limiter.
 
-    Each thread stamps the next allowed call time BEFORE releasing the lock,
-    then sleeps independently — so other threads can compute their own wait
-    concurrently rather than piling up on the lock.
+    Each thread reserves a future call slot before releasing the lock. That
+    preserves spacing even when several workers request slots concurrently.
     """
 
     def __init__(self, min_interval: float) -> None:
         self._lock          = threading.Lock()
-        self._last_call_ts  = 0.0
+        self._next_call_ts  = 0.0
         self._min_interval  = min_interval
 
     def acquire(self, label: str = "") -> None:
         with self._lock:
-            now  = time.monotonic()
-            wait = self._min_interval - (now - self._last_call_ts)
-            # Fix: do NOT advance _last_call_ts here. The old code set
-            # _last_call_ts = now + max(wait, 0) inside the lock, which caused
-            # each successive call to inherit a future timestamp and compound
-            # the wait. We stamp the actual fire time AFTER sleeping instead.
+            now = time.monotonic()
+            fire_at = max(now, self._next_call_ts)
+            self._next_call_ts = fire_at + self._min_interval
+            wait = fire_at - now
         if wait > 0:
             logger.debug(
                 f"[RateLimiter{f'-{label}' if label else ''}] "
                 f"waiting {wait:.2f}s (min_interval={self._min_interval}s)"
             )
             time.sleep(wait)
-        with self._lock:
-            self._last_call_ts = time.monotonic()  # stamp actual fire time
 
 
 class LLMGateway:

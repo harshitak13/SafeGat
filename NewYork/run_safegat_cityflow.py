@@ -1,4 +1,4 @@
-"""Run modified SafeGAT offline audit on NewYork CityFlow datasets."""
+"""Run live SafeGAT-LLM control on NewYork CityFlow datasets."""
 
 from __future__ import annotations
 
@@ -8,17 +8,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from cityflow_safegat.offline_runner import main
+from cityflow_safegat.live_runner import main
 
 
-if __name__ == "__main__":
+def default_args() -> list[str]:
     dataset_dir = Path(__file__).resolve().parent / "28_7"
-    default_args = [
+    return [
         "--dataset-dir", str(dataset_dir),
         "--roadnet", "roadnet_28_7.json",
         "--flow", "anon_28_7_newyork_real_double.json",
         "--impl-dir", str(ROOT / "7x28"),
-        "--output-dir", "safegat_cityflow_output",
-        "--max-nodes-per-step", "8",
+        "--llm-config", str(ROOT / "7x28" / "configs" / "config.yaml"),
+        "--output-dir", "safegat_cityflow_live_output",
+        "--sim-seconds", "1800",
+        "--action-interval", "5",
+        "--gat-heads", "2",
     ]
-    main(default_args + sys.argv[1:])
+
+
+if __name__ == "__main__":
+    main(default_args() + sys.argv[1:])

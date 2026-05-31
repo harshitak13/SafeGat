@@ -1,25 +1,34 @@
-# Jinan SafeGAT CityFlow Adapter
+# Jinan SafeGAT CityFlow Controller
 
-This folder now has a runnable offline adapter for the modified SafeGAT stack.
-It loads `3_4/roadnet_3_4.json` and a CityFlow flow file, builds the junction
-graph, applies the updated risk gate, GRU anomaly forecast, corridor cache, and
-low-confidence `T_i` safety fallback.
+This folder now runs SafeGAT on the Jinan CityFlow dataset with the same
+workflow as `4x4` and `7x28`:
 
-Run:
+1. train a GAT-DQN checkpoint on live CityFlow simulation;
+2. load `models/gat_dqn_final.pt`;
+3. run live CityFlow control with SafeGAT uncertainty gating, real LLM
+   prompting, anomaly forecasting, corridor context, and safety shielding.
+
+Train:
+
+```bash
+python Jinan/train_cityflow.py
+```
+
+Run live SafeGAT-LLM control:
 
 ```bash
 python Jinan/run_safegat_cityflow.py
 ```
 
-To use a different Jinan flow:
+To use another Jinan flow:
 
 ```bash
+python Jinan/train_cityflow.py --flow anon_3_4_jinan_real_2000.json
 python Jinan/run_safegat_cityflow.py --flow anon_3_4_jinan_real_2000.json
-python Jinan/run_safegat_cityflow.py --flow anon_3_4_jinan_real_2500.json
 ```
 
-Outputs are written under `Jinan/3_4/safegat_cityflow_output/`.
+Training writes `Jinan/3_4/models/gat_dqn_final.pt`.
+Inference writes logs under `Jinan/3_4/safegat_cityflow_live_output/`.
 
-This is an offline audit runner, not a live CityFlow simulator controller. It is
-meant to bring the modified SafeGAT logic into the real dataset folder and
-exercise the new conservative CityFlow safety fallback.
+The live runner requires the CityFlow Python package and the same LLM config
+used by the `4x4` SafeGAT implementation.

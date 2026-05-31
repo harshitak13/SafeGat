@@ -1,0 +1,11 @@
+{
+  "interval": 1.0,
+  "seed": 81,
+  "dir": "/mnt/c/Users/harsh/Desktop/RL/Github/SafeGAT/NewYork/28_7/",
+  "roadnetFile": "roadnet_28_7.json",
+  "flowFile": "anon_28_7_newyork_real_double.json",
+  "rlTrafficLight": true,
+  "saveReplay": false,
+  "roadnetLogFile": "replay_ep39_roadnet.json",
+  "replayLogFile": "replay_ep39.txt"
+}

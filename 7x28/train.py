@@ -41,6 +41,7 @@ Produces
 from __future__ import annotations
 
 import os
+import atexit
 
 import numpy as np
 import torch
@@ -53,6 +54,16 @@ from network.graph_builder import EDGE_INDEX
 from envs.grid_env_wrapper    import make_grid_env
 from training.gat_dqn_trainer import FastGATDQNTrainer
 from utils.make_tsc_env       import make_env
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.environ.get(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+_HAS_CUDA = torch.cuda.is_available()
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 _ROOT       = os.path.dirname(os.path.abspath(__file__))
@@ -89,6 +100,23 @@ WARMUP_STEPS        = 1_000     # ↓ 2000→1000: shorter warmup for shorter ru
 BUFFER_CAPACITY     = 100_000   # unchanged (still need enough diversity)
 GRAD_CLIP           = 10.0
 
+# CPU-friendly overrides. Large 7x28 backprop updates are expensive without CUDA,
+# so default CPU runs train less frequently and with smaller batches. Set these
+# environment variables to recover the old heavier behavior when using a GPU.
+HIDDEN_DIM          = _env_int("SAFEGAT_HIDDEN_DIM", HIDDEN_DIM)
+GAT_HEADS           = _env_int("SAFEGAT_GAT_HEADS", GAT_HEADS)
+TOTAL_EPISODES      = _env_int("SAFEGAT_TRAIN_EPISODES", TOTAL_EPISODES)
+MAX_STEPS           = _env_int("SAFEGAT_MAX_STEPS", MAX_STEPS)
+CHECKPOINT_FREQ     = _env_int("SAFEGAT_CHECKPOINT_FREQ", CHECKPOINT_FREQ)
+PATIENCE            = _env_int("SAFEGAT_PATIENCE", PATIENCE)
+ACTION_REPEAT       = _env_int("SAFEGAT_ACTION_REPEAT", ACTION_REPEAT)
+BATCH_SIZE          = _env_int("SAFEGAT_BATCH_SIZE", BATCH_SIZE if _HAS_CUDA else 16)
+TARGET_UPDATE_FREQ  = _env_int("SAFEGAT_TARGET_UPDATE_FREQ", TARGET_UPDATE_FREQ)
+WARMUP_STEPS        = _env_int("SAFEGAT_WARMUP_STEPS", WARMUP_STEPS if _HAS_CUDA else 300)
+BUFFER_CAPACITY     = _env_int("SAFEGAT_BUFFER_CAPACITY", BUFFER_CAPACITY)
+STORE_EVERY         = max(1, _env_int("SAFEGAT_STORE_EVERY", ACTION_REPEAT))
+UPDATE_EVERY        = max(1, _env_int("SAFEGAT_UPDATE_EVERY", 1 if _HAS_CUDA else 20))
+
 
 def main() -> None:
     os.makedirs(LOG_PATH,   exist_ok=True)
@@ -98,7 +126,8 @@ def main() -> None:
     logger.info(
         f"7x28 network | Junctions: {NUM_NODES} | device={device} | "
         f"episodes={TOTAL_EPISODES} | hidden_dim={HIDDEN_DIM} | "
-        f"action_repeat={ACTION_REPEAT}"
+        f"max_steps={MAX_STEPS} | action_repeat={ACTION_REPEAT} | batch={BATCH_SIZE} | "
+        f"warmup={WARMUP_STEPS} | store_every={STORE_EVERY} | update_every={UPDATE_EVERY}"
     )
     logger.info(
         f"CONTROLLED_TLS ({NUM_NODES} junctions): "
@@ -137,6 +166,7 @@ def main() -> None:
         log_file           = LOG_PATH,
         obs_dim            = OBS_DIM,
     )
+    atexit.register(env.close)
 
     reward_history: list[float] = []
     best_reward   = float("-inf")
@@ -155,6 +185,7 @@ def main() -> None:
         actions      = None
         attn         = None
         repeat_count = 0
+        loss         = None
 
         while not done:
             # ── Action repeat: only select a new action every ACTION_REPEAT steps ──
@@ -169,18 +200,20 @@ def main() -> None:
             # Store transition (one per actual env step — keeps replay diverse)
             # is_llm=False: pure RL loop; set True in combined train+LLM loops
             # so the GMM importance sampler can distinguish quality tiers (OffLight fix).
-            trainer.store_transition(
-                obs          = obs,
-                actions      = actions,
-                rewards      = rewards,
-                next_obs     = next_obs,
-                dones        = np.full(NUM_NODES, float(done), dtype=np.float32),
-                attn_weights = attn,
-                is_llm       = False,
-            )
+            if step % STORE_EVERY == 0 or done:
+                trainer.store_transition(
+                    obs          = obs,
+                    actions      = actions,
+                    rewards      = rewards,
+                    next_obs     = next_obs,
+                    dones        = np.full(NUM_NODES, float(done), dtype=np.float32),
+                    attn_weights = attn,
+                    is_llm       = False,
+                )
 
             # Update network
-            loss = trainer.update()
+            if step % UPDATE_EVERY == 0 or done:
+                loss = trainer.update()
 
             ep_reward += rewards
             obs   = next_obs

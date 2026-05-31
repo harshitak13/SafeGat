@@ -52,13 +52,32 @@ def read_config(config_path: Optional[str] = None) -> dict:
         Path(__file__).resolve().parent / "config.yaml",
     ]
 
+    loaded_config_path: Optional[Path] = None
     for path in candidates:
         if path.exists():
             with open(path, "r", encoding="utf-8") as fh:
                 loaded = yaml.safe_load(fh)
                 if isinstance(loaded, dict):
                     cfg.update(loaded)
+                    loaded_config_path = path
             break
+
+    # Merge SafeGAT LLM runtime tuning from configs/safegat_llm.yaml.
+    # This keeps credentials/model selection in config.yaml while allowing
+    # run_safegat.py to consume the llm.* settings documented in safegat_llm.yaml.
+    if loaded_config_path is not None:
+        llm_cfg_path = loaded_config_path.parent / "safegat_llm.yaml"
+    else:
+        llm_cfg_path = project_root / "configs" / "safegat_llm.yaml"
+    if llm_cfg_path.exists():
+        with open(llm_cfg_path, "r", encoding="utf-8") as fh:
+            loaded_llm = yaml.safe_load(fh)
+            if isinstance(loaded_llm, dict):
+                file_llm_cfg = loaded_llm.get("llm")
+                if isinstance(file_llm_cfg, dict):
+                    merged_llm = dict(file_llm_cfg)
+                    merged_llm.update(cfg.get("llm", {}))
+                    cfg["llm"] = merged_llm
 
     # Fallback to environment variables
     for key in ("OPENAI_API_KEY", "OPENAI_API_MODEL", "OPENAI_API_BASE", "OPENAI_PROXY"):

@@ -19,6 +19,7 @@ get_reward() also uses the cache directly.
 from __future__ import annotations
 
 import os
+import socket
 import subprocess
 import time
 from typing import Dict, List, Optional
@@ -28,7 +29,7 @@ from loguru import logger
 
 
 # ── Defaults ───────────────────────────────────────────────────────────────────
-_DEFAULT_PORT    = 8813
+_DEFAULT_PORT    = None
 _TRACI_TIMEOUT   = 60      # seconds to wait for SUMO to accept TraCI connection
 _STEP_LENGTH     = 1.0     # simulation step in seconds
 
@@ -52,13 +53,13 @@ class SharedSUMOConnection:
         num_seconds: int  = 1800,
         use_gui:     bool = False,
         log_file:    str  = "./log/",
-        port:        int  = _DEFAULT_PORT,
+        port:        Optional[int]  = _DEFAULT_PORT,
     ):
         self.sumo_cfg    = sumo_cfg
         self.num_seconds = num_seconds
         self.use_gui     = use_gui
         self.log_file    = log_file
-        self.port        = port
+        self.port        = port or self._find_free_port()
         self._proc: Optional[subprocess.Popen] = None
         self._connected  = False
         self._first_reset = True   # skip traci.load() on first reset (sim just started)
@@ -90,6 +91,12 @@ class SharedSUMOConnection:
         log_err = open(os.path.join(self.log_file, "sumo_stderr.log"), "w")
         self._proc = subprocess.Popen(cmd, stdout=log_out, stderr=log_err)
         logger.info(f"SUMO launched (PID {self._proc.pid}) on port {self.port}")
+
+    @staticmethod
+    def _find_free_port() -> int:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.bind(("127.0.0.1", 0))
+            return int(sock.getsockname()[1])
 
     def _connect_traci(self) -> None:
         deadline = time.time() + _TRACI_TIMEOUT
@@ -123,6 +130,10 @@ class SharedSUMOConnection:
             f"Lane cache built for {len(self._lane_cache)} traffic lights "
             f"(total lanes: {sum(len(v) for v in self._lane_cache.values())})"
         )
+
+    def traffic_light_ids(self) -> set[str]:
+        """Return the currently loaded SUMO traffic-light IDs."""
+        return set(traci.trafficlight.getIDList())
 
     def _fetch_incoming_lanes(self, tls_id: str) -> List[str]:
         """Fetch incoming lanes from TraCI (called once per TLS at startup)."""

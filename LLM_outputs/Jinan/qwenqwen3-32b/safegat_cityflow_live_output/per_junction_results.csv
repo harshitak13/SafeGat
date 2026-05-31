@@ -1,0 +1,13 @@
+junction_id,llm_calls,llm_overrides,mean_reward,total_reward
+intersection_1_1,15,0,-0.204,-73.4237
+intersection_1_2,14,0,-0.1969,-70.8786
+intersection_1_3,13,0,-0.2776,-99.9232
+intersection_2_1,16,2,-0.1698,-61.1253
+intersection_2_2,19,0,-0.0835,-30.0433
+intersection_2_3,19,2,-0.1562,-56.2249
+intersection_3_1,16,0,-0.0983,-35.403
+intersection_3_2,16,0,-0.1302,-46.8596
+intersection_3_3,14,0,-0.1569,-56.4749
+intersection_4_1,14,0,-0.1258,-45.2928
+intersection_4_2,19,4,-0.1424,-51.2656
+intersection_4_3,15,2,-0.1318,-47.4421

@@ -44,6 +44,11 @@ _MAX_QUEUE_M    = 100.0  # normalisation cap for jam length (metres)
 _NUM_DIRECTIONS = 4      # incoming edges sampled per junction
 
 
+def _is_closed_connection(exc: Exception) -> bool:
+    text = str(exc).lower()
+    return "connection closed" in text or "connection already closed" in text
+
+
 # ── Observation builder ────────────────────────────────────────────────────────
 
 def _build_obs_for_junction(
@@ -135,29 +140,55 @@ class GridEnv:
         """
         # 1. Set phases for all junctions
         for i, tls_id in enumerate(self.tls_ids):
-            self.conn.set_phase(tls_id, int(actions[i]))
+            try:
+                self.conn.set_phase(tls_id, int(actions[i]))
+            except Exception as exc:
+                if _is_closed_connection(exc):
+                    logger.warning(f"[GridEnv.step] SUMO connection closed while setting {tls_id}: {exc}")
+                    return self._terminal_step()
+                raise
 
         # 2. Advance simulation by one second
-        self.conn.step_sim()
+        try:
+            self.conn.step_sim()
+        except Exception as exc:
+            if _is_closed_connection(exc):
+                logger.warning(f"[GridEnv.step] SUMO connection closed during simulationStep: {exc}")
+                return self._terminal_step()
+            raise
 
         # 3. Collect observations and rewards
-        obs     = self._collect_obs()
-        rewards = np.array(
-            [self.conn.get_reward(tls_id) for tls_id in self.tls_ids],
-            dtype=np.float32,
-        )
-        done  = self.conn.is_done
-        infos = [self.conn.get_obs(tls_id) for tls_id in self.tls_ids]
+        try:
+            obs     = self._collect_obs(raise_on_closed=True)
+            rewards = np.array(
+                [self.conn.get_reward(tls_id) for tls_id in self.tls_ids],
+                dtype=np.float32,
+            )
+            done  = self.conn.is_done
+            infos = [self.conn.get_obs(tls_id) for tls_id in self.tls_ids]
+        except Exception as exc:
+            if _is_closed_connection(exc):
+                logger.warning(f"[GridEnv.step] SUMO connection closed while collecting step data: {exc}")
+                return self._terminal_step()
+            raise
 
         return obs, rewards, done, infos
 
-    def _collect_obs(self) -> np.ndarray:
+    def _terminal_step(self) -> Tuple[np.ndarray, np.ndarray, bool, List[dict]]:
+        obs = np.zeros((self.n, self.obs_dim), dtype=np.float32)
+        rewards = np.zeros(self.n, dtype=np.float32)
+        infos = [{} for _ in self.tls_ids]
+        return obs, rewards, True, infos
+
+    def _collect_obs(self, raise_on_closed: bool = False) -> np.ndarray:
         obs_matrix = np.zeros((self.n, self.obs_dim), dtype=np.float32)
         for i, tls_id in enumerate(self.tls_ids):
             try:
                 raw = self.conn.get_obs(tls_id)
                 obs_matrix[i] = _build_obs_for_junction(tls_id, raw)
             except Exception as exc:
+                if raise_on_closed and _is_closed_connection(exc):
+                    raise
                 logger.warning(f"[GridEnv._collect_obs] {tls_id}: {exc}")
                 obs_matrix[i] = np.zeros(self.obs_dim, dtype=np.float32)
         return obs_matrix
@@ -204,9 +235,16 @@ def make_grid_env(
         num_seconds = num_seconds,
         use_gui     = use_gui,
         log_file    = log_file,
-        port        = 8813,
+        port        = int(os.environ["SAFEGAT_SUMO_PORT"]) if os.environ.get("SAFEGAT_SUMO_PORT") else None,
     )
     conn.start()   # launches SUMO + opens TraCI — fast, single process
+
+    missing = sorted(set(tls_ids) - conn.traffic_light_ids())
+    if missing:
+        raise RuntimeError(
+            f"{len(missing)} configured TLS IDs are not present in the loaded SUMO network. "
+            f"Sample: {missing[:10]}. Check SUMO_CFG and CONTROLLED_TLS."
+        )
 
     # Log a sample of junction IDs (not all 196)
     logger.debug(

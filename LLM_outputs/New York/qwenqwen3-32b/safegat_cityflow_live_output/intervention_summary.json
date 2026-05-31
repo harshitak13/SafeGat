@@ -1,0 +1,35 @@
+{
+  "total_sim_steps": 360,
+  "llm_calls": 360,
+  "llm_failures": 273,
+  "safe_fallback_holds": 273,
+  "llm_overrides": 33,
+  "safety_adjustments": 25,
+  "override_rate_%": 9.17,
+  "mean_confidence": 0.5,
+  "mean_margin_at_call": 0.0,
+  "override_precision_%": 0.0,
+  "calls_by_reason": {
+    "anomaly": 360
+  },
+  "intervention_rate": 0.00510204081632653,
+  "risk_weights": {
+    "uncertainty": 2.0,
+    "anomaly": 1.5,
+    "queue": 1.0,
+    "waiting": 0.5,
+    "safety": 1.0
+  },
+  "failure_injection_rate": 0.0,
+  "sim_seconds": 1800,
+  "action_interval": 5,
+  "llm_budget_used": 360,
+  "fallback_to_rl": false,
+  "llm_config_path": "/mnt/c/Users/harsh/Desktop/RL/Github/SafeGAT/7x28/configs/config.yaml",
+  "llm_model": "qwen/qwen3-32b",
+  "llm_api_base": "https://api.groq.com/openai/v1",
+  "total_reward": -2432.1171875,
+  "mean_reward": -12.408761024475098,
+  "wall_clock_s": 23632.9,
+  "model_path": "/mnt/c/Users/harsh/Desktop/RL/Github/SafeGAT/NewYork/28_7/models/gat_dqn_final.pt"
+}

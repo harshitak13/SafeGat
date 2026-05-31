@@ -1,0 +1,11 @@
+{
+  "interval": 1.0,
+  "seed": 124,
+  "dir": "/mnt/c/Users/harsh/Desktop/RL/Github/SafeGAT/Hangzhou/4_4/",
+  "roadnetFile": "roadnet_4_4.json",
+  "flowFile": "anon_4_4_hangzhou_real.json",
+  "rlTrafficLight": true,
+  "saveReplay": false,
+  "roadnetLogFile": "replay_ep82_roadnet.json",
+  "replayLogFile": "replay_ep82.txt"
+}

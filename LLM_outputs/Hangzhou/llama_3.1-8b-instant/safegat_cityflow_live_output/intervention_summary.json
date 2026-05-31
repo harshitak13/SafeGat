@@ -1,0 +1,35 @@
+{
+  "total_sim_steps": 360,
+  "llm_calls": 192,
+  "llm_failures": 192,
+  "safe_fallback_holds": 192,
+  "llm_overrides": 0,
+  "safety_adjustments": 0,
+  "override_rate_%": 0.0,
+  "mean_confidence": 0.0,
+  "mean_margin_at_call": 0.0191,
+  "override_precision_%": null,
+  "calls_by_reason": {
+    "anomaly": 192
+  },
+  "intervention_rate": 0.0625,
+  "risk_weights": {
+    "uncertainty": 2.0,
+    "anomaly": 1.5,
+    "queue": 1.0,
+    "waiting": 0.5,
+    "safety": 1.0
+  },
+  "failure_injection_rate": 0.0,
+  "sim_seconds": 1800,
+  "action_interval": 5,
+  "llm_budget_used": 192,
+  "fallback_to_rl": false,
+  "llm_config_path": "/mnt/c/Users/harsh/Desktop/RL/Github/SafeGAT/4x4/configs/config.yaml",
+  "llm_model": "llama-3.1-8b-instant",
+  "llm_api_base": "https://api.groq.com/openai/v1",
+  "total_reward": -315.0773620605469,
+  "mean_reward": -19.69233512878418,
+  "wall_clock_s": 2867.5,
+  "model_path": "/mnt/c/Users/harsh/Desktop/RL/Github/SafeGAT/Hangzhou/4_4/models/gat_dqn_final.pt"
+}

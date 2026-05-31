@@ -1,0 +1,1082 @@
+[
+  {
+    "step": 0,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.043750000000000004,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 1,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.034375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 2,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 3,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0421875,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 4,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 5,
+    "active_flow_roads": 7,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 3,
+    "rl_overrides": 3,
+    "mean_queue": 0.03125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 6,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0421875,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 7,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 8,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 9,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.040625,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 10,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.046875,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 11,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0421875,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 12,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0421875,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 13,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.04375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 14,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 15,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0421875,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 16,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.04375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 17,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.045312500000000006,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 18,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 19,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.04375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 20,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.053125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 21,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0515625,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 22,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.05,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 23,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.049999999999999996,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 24,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.053125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 25,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0484375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 26,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.053125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 27,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.048437499999999994,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 28,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.05,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 29,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0515625,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 30,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0546875,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 31,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.05,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 32,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.051562500000000004,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 33,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.053125000000000006,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 34,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.051562500000000004,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 35,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.05,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 36,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0546875,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 37,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.05,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 38,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.051562500000000004,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 39,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.053125000000000006,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 40,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0421875,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 41,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.032812499999999994,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 42,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 43,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 44,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 45,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.032812499999999994,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 46,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.034375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 47,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 48,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.032812499999999994,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 49,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 50,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0484375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 51,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.034375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 52,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 5,
+    "rl_overrides": 5,
+    "mean_queue": 0.040624999999999994,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 53,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.040625,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 54,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 5,
+    "rl_overrides": 5,
+    "mean_queue": 0.040624999999999994,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 55,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 56,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.04375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 57,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 5,
+    "rl_overrides": 5,
+    "mean_queue": 0.0375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 58,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.037500000000000006,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 59,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.04375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 60,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0390625,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 61,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0328125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 62,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 63,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 64,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 65,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0328125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 66,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0390625,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 67,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0328125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 68,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 69,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 70,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.040624999999999994,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 71,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.03125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 72,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.03125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 73,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 74,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.03125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 75,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.03125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 76,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 77,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.034375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 78,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.03125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 79,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 80,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0421875,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 81,
+    "active_flow_roads": 7,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.034375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 82,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0390625,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 83,
+    "active_flow_roads": 7,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.037500000000000006,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 84,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0390625,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 85,
+    "active_flow_roads": 7,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.034375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 86,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0421875,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 87,
+    "active_flow_roads": 7,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.03125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 88,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0390625,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 89,
+    "active_flow_roads": 7,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.037500000000000006,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 90,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 91,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.03125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 92,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.034375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 93,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.031249999999999997,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 94,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0328125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 95,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.03125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 96,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 97,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0296875,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 98,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0328125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 99,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.034375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 100,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 101,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.029687500000000002,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 102,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.034374999999999996,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 103,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0328125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 104,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.034374999999999996,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 105,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.029687500000000002,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 106,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0359375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 107,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.03125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 108,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.034374999999999996,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 109,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.03125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 110,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.037500000000000006,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 111,
+    "active_flow_roads": 7,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0296875,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 112,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.034375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 113,
+    "active_flow_roads": 7,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0328125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 114,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.034375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 115,
+    "active_flow_roads": 7,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0296875,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 116,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.037500000000000006,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 117,
+    "active_flow_roads": 7,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.028125,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 118,
+    "active_flow_roads": 9,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.034375,
+    "intervention_rate": 0.0625
+  },
+  {
+    "step": 119,
+    "active_flow_roads": 7,
+    "selected_for_llm_audit": 1,
+    "safety_adjustments": 4,
+    "rl_overrides": 4,
+    "mean_queue": 0.0328125,
+    "intervention_rate": 0.0625
+  }
+]

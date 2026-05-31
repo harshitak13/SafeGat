@@ -27,6 +27,7 @@ Produces
 from __future__ import annotations
 
 import os
+import atexit
 
 import numpy as np
 import torch
@@ -109,6 +110,7 @@ def main() -> None:
         log_file           = LOG_PATH,
         obs_dim            = OBS_DIM,
     )
+    atexit.register(env.close)
 
     reward_history: list[float] = []
 

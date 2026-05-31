@@ -1,17 +1,17 @@
 # configs/safegat_llm.yaml
 #
-# SafeGAT-LLM hyperparameters for inference (run_safegat.py).
-# Training hyperparameters live in train.py directly.
+# SafeGAT-LLM hyperparameters for 4x4 inference and CityFlow datasets
+# that reuse the 4x4 implementation, including Jinan and Hangzhou.
 
 llm:
   enabled: true
   mode: selective # "selective" | "always" | "never"
 
   # Uncertainty gate
-  confidence_threshold: 0.05 # Q-margin τ — call LLM when Δ_i < τ
-  intervention_budget: 1600 # max LLM calls for the full episode
-  max_nodes_per_step: 2 # max junctions sent to LLM per sim step
-  intervention_rate: 0.125 # K/N for 16-node grid
+  confidence_threshold: 0.02 # Q-margin tau; call LLM when margin is below tau
+  intervention_budget: 800 # max LLM calls for the full episode
+  max_nodes_per_step: 1 # one serialized LLM call stream for Groq free tier
+  intervention_rate: 0.0625 # K/N for 16-node grid
   failure_injection_rate: 0.0 # sweep 0.10/0.30/0.50/1.00
   risk_weights:
     uncertainty: 2.0
@@ -21,16 +21,22 @@ llm:
     safety: 1.0
 
   # Safety shield
-  min_green_hold: 3 # min steps before a green phase may switch
-  transition_confidence_threshold: 0.75 # below this, hold current phase
+  min_green_hold: 3
+  transition_confidence_threshold: 0.75
 
   # Logging
   log_file: "data/output/llm/safegat_decisions.jsonl"
 
-  # Backend (override per-run if needed)
-  llm_timeout: 20 # seconds per API call before abort
-  fallback_to_rl: true # use RL action if LLM errors
-  min_call_interval_s: 4.0 # rate-limiter: min gap between API calls
+  # Backend/rate-limit controls
+  llm_timeout: 20
+  fallback_to_rl: false # on LLM errors, hold current legal phase instead of RL
+  fallback_policy: "hold_current"
+  min_call_interval_s: 15.0
+  backoff_wait_s: 75.0
+  max_backoff_retries: 1
+  rate_limit_cooldown_steps: 60
+  rate_limit_cooldown_s: 300
+  tpm_limit: 4500
 
   # Scenario detector thresholds
   queue_spike_threshold: 0.85

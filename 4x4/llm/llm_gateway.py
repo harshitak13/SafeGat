@@ -52,14 +52,15 @@ class _RateLimiter:
 
     def __init__(self, min_interval: float) -> None:
         self._lock          = threading.Lock()
-        self._last_call_ts  = 0.0
+        self._next_call_ts  = 0.0
         self._min_interval  = min_interval
 
     def acquire(self, label: str = "") -> None:
         with self._lock:
-            now  = time.monotonic()
-            wait = self._min_interval - (now - self._last_call_ts)
-            self._last_call_ts = now + max(wait, 0)
+            now = time.monotonic()
+            fire_at = max(now, self._next_call_ts)
+            self._next_call_ts = fire_at + self._min_interval
+            wait = fire_at - now
         if wait > 0:
             logger.debug(
                 f"[RateLimiter{f'-{label}' if label else ''}] "
@@ -154,7 +155,7 @@ class LLMGateway:
                 return self.backend(prompt)
             except Exception as exc:
                 if "429" in str(exc) or "rate_limit" in str(exc).lower():
-                    wait = self.backoff_wait_s * (attempt + 1)
+                    wait = min(self.backoff_wait_s * (2 ** attempt), 120.0)
                     logger.warning(
                         f"[LLMGateway-{label}] rate-limit hit "
                         f"(attempt {attempt + 1}/{self.max_backoff_retries}), "

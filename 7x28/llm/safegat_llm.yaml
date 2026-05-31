@@ -8,13 +8,9 @@ llm:
   mode: selective                   # "selective" | "always" | "never"
 
   # Uncertainty gate
-  confidence_threshold: 0.05        # Q-margin tau — call LLM when delta_i < tau
-  intervention_budget:  6400        # max LLM calls for the full episode
-                                    # (scaled from 1600 -> 6400 for 196 nodes)
-  max_nodes_per_step:   2           # SPEED FIX: was 8. 2 nodes called in parallel
-                                    # keeps RPM at ~60/min — well under Groq ceiling.
-                                    # Parallelism means wall-clock time per step is
-                                    # unchanged vs 1 node, but throughput doubles.
+  confidence_threshold: 0.02        # Q-margin tau — call LLM when delta_i < tau
+  intervention_budget:  800         # max LLM calls for the full episode
+  max_nodes_per_step:   1           # one serialized LLM call stream for Groq free tier
 
   # Safety shield
   min_green_hold: 3                 # min steps before a green phase may switch
@@ -25,25 +21,22 @@ llm:
 
   # Backend (override per-run if needed)
   llm_timeout:      20              # seconds per API call before abort
-  fallback_to_rl:   true            # use RL action if LLM errors
+  fallback_to_rl:   false           # on LLM errors, hold current legal phase instead of RL
+  fallback_policy:  "hold_current"
 
-  # SPEED FIX: raised from 2.0s → 2.5s.
-  # Adds a small buffer so 2 parallel calls don't land simultaneously and
-  # trigger rate-limit collisions on Groq's per-second sub-limit.
-  min_call_interval_s: 2.5
+  # Groq free-tier llama-3.1-8b-instant is 30 RPM / 6K TPM.
+  # 15s spacing gives ~4 RPM and leaves room for token-limit variability.
+  min_call_interval_s: 15.0
 
-  # Backoff: base raised from 30s → 60s (Groq reset window is ~60s).
-  backoff_wait_s: 60.0
+  # Fall back to RL quickly if Groq reports a limit; cooldown suppresses retry storms.
+  backoff_wait_s: 75.0
 
-  # SPEED FIX: reduced from 3 → 2.
-  # After 2 failures (60s + 120s = 3min wait max) fall back to RL immediately.
-  # The cooldown in run_safegat.py then suppresses that node for 30 steps,
-  # so the retry storm (J145 failing every step) cannot recur.
-  max_backoff_retries: 2
+  max_backoff_retries: 1
+  rate_limit_cooldown_steps: 60
+  rate_limit_cooldown_s: 300
 
   # TPM gate — Groq free-tier llama-3.1-8b-instant hard cap is 6000 TPM.
-  # SPEED FIX: lowered from 5500 → 5000 to reduce TPM-triggered rate limits.
-  tpm_limit: 5000
+  tpm_limit: 4500
 
   # Scenario detector thresholds
   queue_spike_threshold:               0.85
